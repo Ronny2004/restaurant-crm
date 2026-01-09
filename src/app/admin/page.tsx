@@ -8,11 +8,12 @@ import Link from "next/link";
 import { ChevronLeft, TrendingUp, Package, Users, DollarSign, LogOut, Loader2, Plus, Edit2, Trash2, X, Check } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 import { Modal } from "@/components/ui/Modal";
+import { RoleNavigation } from "@/components/RoleNavigation";
 
 export default function AdminPage() {
     const { profile, loading: authLoading, signOut } = useAuth();
     const router = useRouter();
-    const { products, orders, loading, createProduct, updateProduct, deleteProduct } = useSupabase();
+    const { products, orders, loading,fetchProducts, createProduct, updateProduct, deleteProduct } = useSupabase();
     const toast = useToast();
 
     const [isAddingProduct, setIsAddingProduct] = useState(false);
@@ -20,6 +21,7 @@ export default function AdminPage() {
     const [deletingProduct, setDeletingProduct] = useState<{ id: string; name: string } | null>(null);
     const [formData, setFormData] = useState({ name: "", price: 0, category: "", stock: 0 });
 
+    // Protección de ruta
     useEffect(() => {
         if (!authLoading && (!profile || profile.role !== "admin")) {
             router.push("/login");
@@ -36,14 +38,14 @@ export default function AdminPage() {
 
     if (loading) return <div className="container">Cargando...</div>;
 
-    // Calculations
+    // Cálculos de Stats
     const totalSales = orders
         .filter(o => o.status === 'paid')
         .reduce((sum, o) => sum + o.total, 0);
 
     const totalOrders = orders.length;
 
-    // Best selling item calculation
+    // Producto más vendido
     const itemCounts: Record<string, number> = {};
     orders.forEach(o => {
         o.items.forEach(i => {
@@ -74,17 +76,28 @@ export default function AdminPage() {
         }
     };
 
-    const confirmDelete = async () => {
-        if (deletingProduct) {
-            try {
-                await deleteProduct(deletingProduct.id);
-                setDeletingProduct(null);
-                toast("Producto eliminado", "success");
-            } catch (error) {
-                toast("Error al eliminar producto", "error");
-            }
+const confirmDelete = async () => {
+    if (deletingProduct) {
+        try {
+            // Intentamos borrar en la base de datos
+            await deleteProduct(deletingProduct.id);
+            
+            // Si llega aquí, es porque se borró correctamente
+            setDeletingProduct(null);
+            toast("Producto eliminado con éxito", "success");
+        } catch (error: any) {
+            // Capturamos el mensaje específico (ej: "No se puede eliminar porque tiene ventas")
+            const errorMessage = error.message || "Error al eliminar producto";
+            toast(errorMessage, "error");
+            
+            // Forzamos un refresco por si la UI se desincronizó
+            fetchProducts(); 
+        } finally {
+            // Cerramos el modal de confirmación pase lo que pase
+            setDeletingProduct(null);
         }
-    };
+    }
+};
 
     const startEdit = (product: Product) => {
         setEditingProductId(product.id);
@@ -118,26 +131,34 @@ export default function AdminPage() {
 
             {/* Stats Grid */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "1.5rem", marginBottom: "3rem" }}>
-                <div className="glass-panel" style={{ padding: "1.5rem", display: "flex", alignItems: "center", gap: "1rem" }}>
-                    <div style={{ padding: "1rem", background: "rgba(34, 197, 94, 0.2)", color: "#4ade80", borderRadius: "12px" }}>
-                        <DollarSign size={32} />
+                
+                {/* Enlace a Ventas Totales */}
+                <Link href="/admin/ventastotales" style={{ textDecoration: 'none', color: 'inherit' }}>
+                    <div className="glass-panel stat-card-hover" style={{ padding: "1.5rem", display: "flex", alignItems: "center", gap: "1rem", cursor: "pointer", transition: "transform 0.2s" }}>
+                        <div style={{ padding: "1rem", background: "rgba(34, 197, 94, 0.2)", color: "#4ade80", borderRadius: "12px" }}>
+                            <DollarSign size={32} />
+                        </div>
+                        <div>
+                            <div style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>Ventas Totales</div>
+                            <div style={{ fontSize: "1.8rem", fontWeight: "bold" }}>${totalSales.toFixed(2)}</div>
+                        </div>
                     </div>
-                    <div>
-                        <div style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>Ventas Totales</div>
-                        <div style={{ fontSize: "1.8rem", fontWeight: "bold" }}>${totalSales.toFixed(2)}</div>
-                    </div>
-                </div>
+                </Link>
 
-                <div className="glass-panel" style={{ padding: "1.5rem", display: "flex", alignItems: "center", gap: "1rem" }}>
-                    <div style={{ padding: "1rem", background: "rgba(59, 130, 246, 0.2)", color: "#60a5fa", borderRadius: "12px" }}>
-                        <Users size={32} />
+                {/* Enlace a Pedidos Totales */}
+                <Link href="/admin/pedidostotales" style={{ textDecoration: 'none', color: 'inherit' }}>
+                    <div className="glass-panel stat-card-hover" style={{ padding: "1.5rem", display: "flex", alignItems: "center", gap: "1rem", cursor: "pointer", transition: "transform 0.2s" }}>
+                        <div style={{ padding: "1rem", background: "rgba(59, 130, 246, 0.2)", color: "#60a5fa", borderRadius: "12px" }}>
+                            <Users size={32} />
+                        </div>
+                        <div>
+                            <div style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>Total Pedidos</div>
+                            <div style={{ fontSize: "1.8rem", fontWeight: "bold" }}>{totalOrders}</div>
+                        </div>
                     </div>
-                    <div>
-                        <div style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>Total Pedidos</div>
-                        <div style={{ fontSize: "1.8rem", fontWeight: "bold" }}>{totalOrders}</div>
-                    </div>
-                </div>
+                </Link>
 
+                {/* Más Vendido (Se mantiene como info estática) */}
                 <div className="glass-panel" style={{ padding: "1.5rem", display: "flex", alignItems: "center", gap: "1rem" }}>
                     <div style={{ padding: "1rem", background: "rgba(245, 158, 11, 0.2)", color: "#fbbf24", borderRadius: "12px" }}>
                         <TrendingUp size={32} />

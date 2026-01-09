@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
         });
 
-        // Listen for auth changes
+        // Escuchar cambios de estado de autenticación
         const {
             data: { subscription },
         } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -71,13 +71,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 .single();
 
             if (error) {
-                console.error("Error fetching profile:", error);
+                console.error("Error al obtener la vista del perfil:", error);
                 setProfile(null);
             } else {
                 setProfile(data as UserProfile);
             }
         } catch (error) {
-            console.error("Error in fetchProfile:", error);
+            console.error("Error inesperado:", error);
             setProfile(null);
         } finally {
             setLoading(false);
@@ -85,7 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const signIn = async (email: string, password: string) => {
-        // 1. Try Real Supabase Auth
+        // 1. Autenticacion real con supabase
         const { data, error } = await supabase.auth.signInWithPassword({
             email,
             password,
@@ -95,43 +95,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             await fetchProfile(data.user.id);
             return { error: null };
         }
-
-        // 2. Fallback to Demo Mode if Auth fails
-        console.warn("Real Auth failed, attempting Demo Auth override...", error);
-
-        const demoUsers: Record<string, UserProfile & { password: string }> = {
-            'admin@restaurant.com': { id: 'demo-admin', email: 'admin@restaurant.com', role: 'admin', full_name: 'Demo Admin', password: 'admin123' },
-            'waiter@restaurant.com': { id: 'demo-waiter', email: 'waiter@restaurant.com', role: 'waiter', full_name: 'Demo Waiter', password: 'waiter123' },
-            'chef@restaurant.com': { id: 'demo-chef', email: 'chef@restaurant.com', role: 'chef', full_name: 'Demo Chef', password: 'chef123' },
-            'cashier@restaurant.com': { id: 'demo-cashier', email: 'cashier@restaurant.com', role: 'cashier', full_name: 'Demo Cashier', password: 'cashier123' }
-        };
-
-        const demoUser = demoUsers[email];
-
-        if (demoUser && demoUser.password === password) {
-            console.log("Logged in with DEMO user:", demoUser.role);
-            // Manually set state
-            const mockUser: User = {
-                id: demoUser.id,
-                aud: 'authenticated',
-                role: 'authenticated',
-                email: demoUser.email,
-                app_metadata: {},
-                user_metadata: {},
-                created_at: new Date().toISOString()
-            } as User;
-
-            setUser(mockUser);
-            setProfile({
-                id: demoUser.id,
-                email: demoUser.email,
-                role: demoUser.role,
-                full_name: demoUser.full_name
-            });
-            // Create a fake session to satisfy types if needed, though we rely on user/profile state
-            return { error: null };
-        }
-
         return { error };
     };
 
@@ -168,7 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 export const useAuth = () => {
     const context = useContext(AuthContext);
     if (context === undefined) {
-        throw new Error("useAuth must be used within an AuthProvider");
+        throw new Error("useAuth debe usarse siempre dentro de AuthProvider");
     }
     return context;
 };

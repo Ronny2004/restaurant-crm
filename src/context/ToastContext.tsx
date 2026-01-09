@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, ReactNode, useCallback } from "react";
 import { Toast, ToastType } from "@/components/ui/Toast";
 
 interface ToastContextType {
@@ -16,23 +16,30 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         isVisible: false,
     });
 
-    const toast = (message: string, type: ToastType = "info") => {
-        setToastState({ message, type, isVisible: true });
-    };
-
-    const closeToast = () => {
+const closeToast = useCallback(() => {
         setToastState((prev) => ({ ...prev, isVisible: false }));
-    };
+    }, []);
 
-    return (
+    const toast = useCallback((message: string, type: ToastType = "info") => {
+        setToastState({ message, type, isVisible: true });
+
+        // Opcional: Auto-cerrar después de 3 segundos
+        setTimeout(() => {
+            closeToast();
+        }, 3000);
+    }, [closeToast]);
+
+return (
         <ToastContext.Provider value={{ toast }}>
             {children}
-            <Toast
-                message={toastState.message}
-                type={toastState.type}
-                isVisible={toastState.isVisible}
-                onClose={closeToast}
-            />
+            {toastState.isVisible && (
+                <Toast
+                    message={toastState.message}
+                    type={toastState.type}
+                    isVisible={toastState.isVisible}
+                    onClose={closeToast}
+                />
+            )}
         </ToastContext.Provider>
     );
 }

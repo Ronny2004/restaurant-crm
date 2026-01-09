@@ -1,15 +1,16 @@
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { LogOut, ArrowLeft } from "lucide-react";
 
 export function RoleNavigation() {
     const { profile, signOut } = useAuth();
     const router = useRouter();
+    const pathname = usePathname();
 
     const handleBack = () => {
-        router.push("/admin");
+        router.push("/");
     };
 
     const handleLogout = async () => {
@@ -18,27 +19,32 @@ export function RoleNavigation() {
 
     if (!profile) return null;
 
-    // Si es admin, mostrar botón de Volver
-    if (profile.role === "admin") {
-        return (
-            <button
-                onClick={handleBack}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-700"
-            >
-                <ArrowLeft size={18} />
-                Volver al Panel
-            </button>
-        );
-    }
+    // Lógica inteligente: 
+    // Si es admin Y no está en la raíz de admin, muestra "Volver"
+    // Pero si ya está en /admin o es otro rol, muestra "Cerrar Sesión"
+    const isAdminOutsidePanel = profile.role === "admin" && pathname !== "/";
 
-    // Para otros roles, mostrar Cerrar Sesión
     return (
-        <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition-colors bg-red-600 rounded-lg hover:bg-red-700"
-        >
-            <LogOut size={18} />
-            Cerrar Sesión
-        </button>
+        <div style={{ display: "flex", gap: "1rem" }}>
+            {isAdminOutsidePanel ? (
+                <button
+                    onClick={handleBack}
+                    className="btn btn-secondary"
+                    style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+                >
+                    <ArrowLeft size={18} />
+                    <span>Volver al Panel</span>
+                </button>
+            ) : (
+                <button
+                    onClick={handleLogout}
+                    className="btn btn-secondary"
+                    style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--danger)" }}
+                >
+                    <LogOut size={18} />
+                    <span>Cerrar Sesión</span>
+                </button>
+            )}
+        </div>
     );
 }

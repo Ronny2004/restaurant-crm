@@ -2,7 +2,6 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { User } from "@supabase/supabase-js";
 
 // Types
 export type Product = {
@@ -34,128 +33,124 @@ export type Order = {
 type SupabaseContextType = {
     products: Product[];
     orders: Order[];
+    fetchProducts: () => Promise<void>; 
+    fetchOrders: () => Promise<void>;
     createOrder: (table: string, items: { product: Product; quantity: number }[]) => Promise<void>;
     updateOrderStatus: (orderId: string, status: Order["status"]) => Promise<void>;
     createProduct: (product: Omit<Product, "id">) => Promise<void>;
     updateProduct: (id: string, product: Partial<Omit<Product, "id">>) => Promise<void>;
     deleteProduct: (id: string) => Promise<void>;
+    getSalesData: (startDate: Date, endDate: Date) => Promise<Order[]>;
     loading: boolean;
 };
 
 const SupabaseContext = createContext<SupabaseContextType | undefined>(undefined);
 
-// Mock Data for Demo Mode
-const MOCK_PRODUCTS: Product[] = [
-    { id: "1", name: "Hamburguesa Clásica", price: 12.50, category: "Principal", stock: 50 },
-    { id: "2", name: "Papas Fritas", price: 5.00, category: "Acompañante", stock: 100 },
-    { id: "3", name: "Refresco", price: 3.00, category: "Bebida", stock: 200 },
-    { id: "4", name: "Tacos de Pollo", price: 8.00, category: "Principal", stock: 40 },
-    { id: "5", name: "Agua Mineral", price: 2.00, category: "Bebida", stock: 150 },
-];
-
 export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     const [products, setProducts] = useState<Product[]>([]);
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
-    const [isDemo, setIsDemo] = useState(false);
 
+    // 1. Carga inicial de datos
     useEffect(() => {
         const init = async () => {
-            // Check if Supabase keys are configured (and not the fallback)
-            const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-            // If no env var, or if it matches our fallback in client.ts (which we can't see here directly but can infer if it fails or if we strictly check 'undefined' before client load? No, process.env is available)
-            // Actually, if we set fallback in client.ts, the client object is validish.
-            // But here we check process.env directly.
-            if (!url || url === 'https://example.com' || url === '') {
-                console.warn("Supabase keys missing or default. Using Demo Mode.");
-                setProducts(MOCK_PRODUCTS);
-                setIsDemo(true);
+            try {
+                // Cargamos ambos al inicio
+                await Promise.all([fetchProducts(), fetchOrders()]);
+            } catch (error) {
+                console.error("Error inicializando datos:", error);
+            } finally {
                 setLoading(false);
-                return;
             }
-
-            await fetchProducts();
-            await fetchOrders();
-            subscribeToOrders();
-            setLoading(false);
         };
 
         init();
+
+        // Configuración de Realtime
+        const channel = supabase
+            .channel('public:orders')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, 
+                () => {
+                console.log("Cambio detectado en pedidos");
+                fetchOrders(); 
+            }
+        )
+        .on(
+            'postgres_changes', 
+            { event: '*', schema: 'public', table: 'products' }, 
+            () => {
+                console.log("Cambio detectado en productos (Menú)");
+                fetchProducts(); // <--- ESTO actualiza el menú del mesero automáticamente
+            }
+        )
+            .subscribe();
+
+            // Limpieza de suscripción (Corrección para el error de la imagen)
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, []);
 
     const fetchProducts = async () => {
-        const { data, error } = await supabase.from("products").select("*");
-        if (data) setProducts(data);
-        else if (error) console.error("Error fetching products:", error);
+        const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .order('name', { ascending: true }); // 1. Ordenar para que no "salten" los items
+
+        if (error) {
+        console.error("Error al obtener los productos:", error);
+        return;
+    }
+        if (data) {
+            setProducts([...data]);
+        }
+        else if (error) console.error("Error al obtener los productos:", error);
     };
 
-    const fetchOrders = async () => {
-        const { data: ordersData, error } = await supabase.from("orders").select("*").order('created_at', { ascending: false });
+// Obtenemos órdenes con sus ítems y el nombre del producto en una sola consulta
+const fetchOrders = async () => {
+        const { data, error } = await supabase
+            .from("orders")
+            .select(`
+                *,
+                items:order_items (
+                    *,
+                    product:products (name)
+                )
+            `)
+            .order('created_at', { ascending: false });
+
         if (error) {
-            console.error("Error fetching orders:", error);
+            console.error("Error obteniendo las ordenes:", error);
             return;
         }
 
-        // Fetch items for each order (simplified for demo, usually use join)
-        const fullOrders = await Promise.all(ordersData.map(async (order) => {
-            const { data: items } = await supabase.from("order_items").select("*, products(name)").eq("order_id", order.id);
-            const methodizedItems = items?.map(item => ({
+        // Mapeamos para que coincida con tu interfaz 'Order'
+        const formattedOrders = data.map((order: any) => ({
+            ...order,
+            items: order.items.map((item: any) => ({
                 ...item,
-                product_name: item.products?.name || "Unknown"
-            })) || [];
-            return { ...order, items: methodizedItems };
+                product_name: item.product?.name || "Desconocido"
+            }))
         }));
 
-        setOrders(fullOrders as Order[]);
+        setOrders(formattedOrders as Order[]);
     };
 
-    const subscribeToOrders = () => {
-        // Realtime subscription setup
-        const channel = supabase
-            .channel('public:orders')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
-                console.log('Change received!', payload);
-                fetchOrders(); // Refresh all for simplicity
-            })
-            .subscribe();
-
-        // return () => supabase.removeChannel(channel);
-    };
-
+    // --- Funciones CRUD (Escritura) ---
     const createOrder = async (table: string, items: { product: Product; quantity: number }[]) => {
         const total = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
 
-        if (isDemo) {
-            const newOrder: Order = {
-                id: Math.random().toString(36).substr(2, 9),
-                table_number: table,
-                status: "pending",
-                total,
-                created_at: new Date().toISOString(),
-                items: items.map(i => ({
-                    id: Math.random().toString(),
-                    product_id: i.product.id,
-                    product_name: i.product.name,
-                    quantity: i.quantity,
-                    price: i.product.price
-                }))
-            };
-            setOrders(prev => [newOrder, ...prev]);
-            return;
-        }
-
-        // Supabase Insert
+        // 1. Insertamos el pedido principal
         const { data: order, error } = await supabase
             .from("orders")
             .insert({ table_number: table, total, status: "pending" })
             .select()
             .single();
 
-        if (error || !order) {
-            console.error("Error creating order", error);
-            return;
-        }
+        if (error || !order) throw error;
 
+        // 2. Preparamos los items para la tabla intermedia
         const orderItems = items.map(item => ({
             order_id: order.id,
             product_id: item.product.id,
@@ -163,72 +158,129 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
             price: item.product.price
         }));
 
-        await supabase.from("order_items").insert(orderItems);
-        // Realtime will trigger update
+        const { error: itemsError } = await supabase.from("order_items").insert(orderItems);
+        if (itemsError) throw itemsError;
+        // 3. ACTUALIZACIÓN OPTIMISTA DEL ESTADO
+    // Creamos un objeto que simule el pedido completo con sus items para que aparezca en la UI
+    const newOrderForState = {
+        ...order,
+        items: items.map(i => ({
+            product_name: i.product.name, // Esto es vital para que se vea el nombre en la lista
+            quantity: i.quantity,
+            price: i.product.price
+        }))
     };
 
+    // Actualizamos el estado local instantáneamente
+    setOrders(prev => [newOrderForState, ...prev]);
+    
+    return order; // Retornamos el pedido por si el componente necesita el ID
+};
     const updateOrderStatus = async (orderId: string, status: Order["status"]) => {
-        if (isDemo) {
-            setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
-            return;
-        }
-
-        await supabase.from("orders").update({ status }).eq("id", orderId);
+        const { error } = await supabase.from("orders").update({ status }).eq("id", orderId);
+        if (error) throw error;
     };
 
     const createProduct = async (product: Omit<Product, "id">) => {
-        if (isDemo) {
-            const newProduct: Product = {
-                ...product,
-                id: Math.random().toString(36).substr(2, 9)
-            };
-            setProducts(prev => [...prev, newProduct]);
-            return;
-        }
-
-        const { error } = await supabase.from("products").insert(product);
+        const { data,error } = await supabase
+        .from("products")
+        .insert(product)
+        .select() // Importante para obtener el ID generado
+        .single();
         if (error) {
-            console.error("Error creating product:", error);
+            console.error("Error creando el producto:", error);
             throw error;
         }
-        await fetchProducts();
+        if (data) {
+        setProducts(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+    }
     };
 
     const updateProduct = async (id: string, product: Partial<Omit<Product, "id">>) => {
-        if (isDemo) {
-            setProducts(prev => prev.map(p => p.id === id ? { ...p, ...product } : p));
-            return;
-        }
-
-        const { error } = await supabase.from("products").update(product).eq("id", id);
+        const { data,error } = await supabase
+        .from("products")
+        .update(product)
+        .eq("id", id)
+        .select() // Importante para obtener el ID generado
+        .single();
         if (error) {
-            console.error("Error updating product:", error);
+            console.error("Error al actualizar el producto:", error);
             throw error;
         }
-        await fetchProducts();
+        if (data) {
+        setProducts(prev => prev.map(p => p.id === id ? data : p));
+    }
     };
 
-    const deleteProduct = async (id: string) => {
-        if (isDemo) {
-            setProducts(prev => prev.filter(p => p.id !== id));
-            return;
+const deleteProduct = async (id: string) => {
+    try {
+        // 1. Validamos si el producto tiene items vinculados en pedidos
+        const { count, error: countError } = await supabase
+            .from("order_items")
+            .select("*", { count: 'exact', head: true })
+            .eq("product_id", id);
+
+        if (countError) throw countError;
+
+        // 2. Si el conteo es mayor a 0, detenemos el proceso
+        if (count && count > 0) {
+            throw new Error("No se puede eliminar: Este producto ya ha sido vendido y tiene historial (Comuniquese con el ADMINISTRADOR del App).");
         }
 
-        const { error } = await supabase.from("products").delete().eq("id", id);
-        if (error) {
-            console.error("Error deleting product:", error);
-            throw error;
-        }
-        await fetchProducts();
-    };
+        // 3. Si está limpio, procedemos a borrar
+        const { error: deleteError } = await supabase
+            .from("products")
+            .delete()
+            .eq("id", id);
+
+        if (deleteError) throw deleteError;
+
+        // 4. Solo si todo salió bien, actualizamos el estado local
+        setProducts(prev => prev.filter(p => p.id !== id));
+        
+    } catch (error: any) {
+        console.error("Error en deleteProduct:", error.message);
+        // Lanzamos el error para que el componente (AdminPage) lo capture y muestre el Toast
+        throw error;
+    }
+};
+const getSalesData = async (startDate: Date, endDate: Date) => {
+    const { data, error } = await supabase
+        .from("orders")
+        .select(`
+            *,
+            items:order_items (
+                *,
+                product:products (name)
+            )
+        `)
+        .gte('created_at', startDate.toISOString())
+        .lte('created_at', endDate.toISOString())
+        .eq('status', 'paid') // Solo ventas concretadas
+        .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data as Order[];
+};
 
     return (
-        <SupabaseContext.Provider value={{ products, orders, createOrder, updateOrderStatus, createProduct, updateProduct, deleteProduct, loading }}>
+        <SupabaseContext.Provider value={{ 
+            products, 
+            orders, 
+            fetchProducts,
+            fetchOrders,
+            createOrder, 
+            updateOrderStatus, 
+            createProduct, 
+            updateProduct, 
+            deleteProduct,
+            getSalesData, 
+            loading 
+            }}>
             {children}
         </SupabaseContext.Provider>
     );
 }
-
 export const useSupabase = () => {
     const context = useContext(SupabaseContext);
     if (context === undefined) {
