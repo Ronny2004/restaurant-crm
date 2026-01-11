@@ -5,16 +5,16 @@
 .yarn/install-state.gz
 
 # Android
-/android-app/app/build
-/android-app/.gradle
-/android-app/local.properties
-/android-app/*/build
-/android-app/app/src/main/java/com/restaurantcrm/app/data/SupabaseClient.kt
-/android-app/.idea
-/android-app/*.iml
+**/android-app/app/build
+**/android-app/.gradle
+**/android-app/local.properties
+**/android-app/*/build
+**/android-app/app/src/main/java/com/restaurantcrm/app/data/SupabaseClient.kt
+**/android-app/.idea
+**/android-app/*.iml
 
 # Respaldos Mobile
-/respaldosmobile
+**/respaldosmobile
 
 # Testing
 /coverage
