@@ -1,0 +1,26 @@
+[
+    {
+        "merged": "C:\\Users\\User\\.gradle\\daemon\\8.13\\com.restaurantcrm.app-debug-4:\\layout_activity_login.xml.flat",
+        "source": "C:\\Users\\User\\.gradle\\daemon\\8.13\\com.restaurantcrm.app-main-6:\\layout\\activity_login.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/layout_activity_admin.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/layout/activity_admin.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/layout_activity_cashier.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/layout/activity_cashier.xml"
+    },
+    {
+        "merged": "C:\\Users\\User\\.gradle\\daemon\\8.13\\com.restaurantcrm.app-debug-4:\\drawable_circle_background.xml.flat",
+        "source": "C:\\Users\\User\\.gradle\\daemon\\8.13\\com.restaurantcrm.app-main-6:\\drawable\\circle_background.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/layout_activity_chef.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/layout/activity_chef.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/layout_activity_waiter.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/layout/activity_waiter.xml"
+    }
+]

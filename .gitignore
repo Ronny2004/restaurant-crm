@@ -4,6 +4,18 @@
 .pnp.js
 .yarn/install-state.gz
 
+# Android
+/android-app/app/build
+/android-app/.gradle
+/android-app/local.properties
+/android-app/*/build
+/android-app/app/src/main/java/com/restaurantcrm/app/data/SupabaseClient.kt
+/android-app/.idea
+/android-app/*.iml
+
+# Respaldos Mobile
+/respaldosmobile
+
 # Testing
 /coverage
 
@@ -13,6 +25,9 @@
 
 # Production
 /build
+/out
+/.next
+/dist
 
 # Misc
 .DS_Store
@@ -29,6 +44,13 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Android Security
+/android-app/local.properties
+/android-app/app/src/main/java/com/restaurantcrm/app/data/SupabaseClient.kt
+/android-app/app/google-services.json
+/android-app/*.jks
+/android-app/*.keystore
 
 # Vercel
 .vercel
@@ -54,3 +76,9 @@ next-env.d.ts
 *.njsproj
 *.sln
 *.sw?
+.classpath
+.project
+.settings
+bin/
+gen/
+out/

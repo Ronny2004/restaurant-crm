@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DeliciasMoran</string>
+    <string name="login_title">Iniciar Sesión</string>
+    <string name="email_hint">Correo electrónico</string>
+    <string name="password_hint">Contraseña</string>
+    <string name="login_button">Entrar</string>
+    <string name="error_fill_all">Por favor completa todos los campos</string>
+</resources>

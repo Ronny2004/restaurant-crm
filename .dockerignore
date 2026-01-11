@@ -1,0 +1,17 @@
+node_modules
+.next
+.git
+.idea
+.vscode
+android-app
+respaldosmobile
+*.apk
+*.md
+Dockerfile
+.dockerignore
+.env*.local
+README.md
+supabase-schema.sql
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

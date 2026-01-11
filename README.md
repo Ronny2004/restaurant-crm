@@ -1,183 +1,85 @@
-# 🍽️ Restaurant CRM
+# 🍽️ DeliciasMoran (Restaurant CRM)
 
-Sistema de gestión integral para restaurantes con interfaces especializadas para diferentes roles: Administrador, Mesero, Chef y Cajero. Construido con Next.js y Supabase.
+Sistema de gestión integral para restaurantes con interfaces especializadas para diferentes roles: Administrador, Mesero, Chef y Cajero. Este ecosistema incluye una plataforma Web moderna y una aplicación Android nativa optimizada.
 
 ## 📋 Características Principales
 
-### 👥 Roles y Permisos
+### 👥 Roles y Permisos (Web & Android)
+- **Administrador**: Gestión completa de inventario, productos, ventas y usuarios. Panel de estadísticas con flitrado por periodos.
+- **Mesero**: Creación y gestión de órdenes de las mesas. Vista de pedidos activos.
+- **Chef**: Visualización y actualización del estado de las órdenes en cocina.
+- **Cajero**: Procesamiento de pagos, facturación y cierre de órdenes.
 
-- **Administrador**: Gestión completa de inventario, productos, ventas y usuarios
-- **Mesero**: Creación y gestión de órdenes de las mesas
-- **Chef**: Visualización y actualización del estado de las órdenes en cocina
-- **Cajero**: Procesamiento de pagos y cierre de órdenes
-
-### 🎯 Funcionalidades
-
-- ✅ Sistema de autenticación seguro con Supabase Auth
-- ✅ Gestión de productos con categorías (Principal, Acompañante, Bebida, Postre)
-- ✅ Control de inventario en tiempo real
-- ✅ Seguimiento de órdenes con estados (pendiente, preparando, listo, pagado)
-- ✅ Panel de administración con estadísticas de ventas
-- ✅ Panel de "Pedidos Activos" para meseros (seguimiento en tiempo real)
-- ✅ Interfaz responsiva y moderna
-
-- ✅ Row Level Security (RLS) para seguridad de datos
-- ✅ Sistema de notificaciones (Toast) personalizado
-- ✅ Modo Demo offline (funciona sin conexión a Supabase si faltan credenciales)
+### 🎯 Funcionalidades Destacadas
+- ✅ **Sincronización Total**: Datos compartidos en tiempo real entre Web y Android.
+- ✅ **Filtrado Avanzado**: Estadísticas detalladas de ventas en el dashboard de administración.
+- ✅ **Identidad Corporativa**: Totalmente brandeado para "DeliciasMoran" con logo e iconografía personalizada.
+- ✅ **Seguridad Robusta**: Row Level Security (RLS) en base de datos y confirmación de acciones críticas en móvil.
 
 ## 🛠️ Stack Tecnológico
+- **Web**: Next.js 16, React 19, CSS Vanilla.
+- **Mobile**: Android nativo (Kotlin, MVVM, Material Design 3).
+- **Backend**: Supabase (PostgreSQL, Auth, RLS).
 
-- **Frontend**: Next.js 16 + React 19
-- **Estilos**: CSS Vanilla con diseño moderno
-- **Base de Datos**: Supabase (PostgreSQL)
-- **Autenticación**: Supabase Auth
-- **Iconos**: Lucide React
-- **Lenguaje**: TypeScript
+## 🚀 Guía de Instalación (Producción)
 
-## 📦 Estructura del Proyecto
+### 1. Preparación de Base de Datos (Supabase)
+Cada implementación requiere su propio proyecto en Supabase:
+1. Crea un nuevo proyecto en [Supabase](https://supabase.com).
+2. Abre el **SQL Editor** y ejecuta íntegramente el archivo `supabase-schema.sql` ubicado en la raíz de este repositorio. Esto creará las tablas, índices y lógica necesaria.
+3. En **Authentication > Users**, crea manualmente los usuarios necesarios para tu personal.
+4. Asigna los roles correspondientes de cada usuario en la tabla `profiles` (`admin`, `waiter`, `chef`, `cashier`).
 
-```
-restaurant-crm/
-├── src/
-│   ├── app/
-│   │   ├── admin/          # Panel de administrador
-│   │   ├── mesero/         # Interfaz de mesero
-│   │   ├── cocina/         # Interfaz de chef
-│   │   ├── cajero/         # Interfaz de cajero
-│   │   ├── login/          # Página de inicio de sesión
-│   │   └── page.tsx        # Página principal
-│   ├── components/         # Componentes reutilizables
-│   ├── context/           # Contextos de React (Auth, etc.)
-│   └── lib/               # Utilidades y configuración
-├── public/               # Archivos estáticos
-└── supabase-schema.sql   # Esquema de base de datos
-```
+### 2. Configuración del Servidor Web
+1. Crea un archivo `.env.local` basado en tus credenciales de Supabase:
+   ```env
+   NEXT_PUBLIC_SUPABASE_URL=tu_url_de_supabase
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_clave_anonima
+   ```
+2. Instala dependencias y compila:
+   ```bash
+   npm install
+   npm run build
+   npm run start
+   ```
 
-## 🗄️ Esquema de Base de Datos
+### 3. Configuración de la App Android
+1. Abre el proyecto en **Android Studio**.
+2. Configura tus credenciales de Supabase en el archivo `local.properties` (Este archivo está excluido del control de versiones por seguridad).
+3. Genera el APK de producción:
+   ```bash
+   ./gradlew assembleRelease
+   ```
 
-### Tablas Principales
+## 🐳 Despliegue con Docker (Recomendado para Producción)
 
-1. **profiles** - Perfiles de usuario con roles
-2. **products** - Catálogo de productos
-3. **orders** - Órdenes de las mesas
-4. **order_items** - Items individuales de cada orden
+Para garantizar la máxima compatibilidad con cualquier dominio y hosting que soporte contenedores, hemos incluido una configuración de Docker optimizada con Nginx.
 
-### Productos Precargados
-
-El sistema incluye 18 productos de ejemplo en 4 categorías:
-- Principales: Hamburguesas, Pizzas, Tacos
-- Acompañantes: Ensaladas, Papas, Alitas
-- Bebidas: Refrescos, Agua, Jugos, Cerveza, Café
-- Postres: Pastel, Helado, Flan
-
-## 🚀 Instalación y Configuración
-
-### Prerrequisitos
-
-- **Node.js** 20 o superior
-- **Cuenta de Supabase**
-
-### Paso 1: Inicialización del Sistema
-
-> [!IMPORTANT]
-> **Requisito Crítico**: Asegúrate de tener **Node.js v20+** instalado y en tu PATH.
-
-1.  **Instalar dependencias**:
-    ```bash
-    npm install
-    ```
-
-### Paso 2: Configurar Supabase
-
-1. Crea un proyecto en [Supabase](https://supabase.com)
-2. Ve al SQL Editor y ejecuta el archivo `supabase-schema.sql`
-3. Crea los usuarios de prueba en Authentication > Users:
-   - `admin@restaurant.com` (password: admin123)
-   - `waiter@restaurant.com` (password: waiter123)
-   - `chef@restaurant.com` (password: chef123)
-   - `cashier@restaurant.com` (password: cashier123)
-4. Actualiza los roles ejecutando los comandos SQL del archivo `supabase-schema.sql`
-
-### Paso 3: Configurar Variables de Entorno
-
-Crea un archivo `.env.local` en la raíz del proyecto:
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=tu_url_de_supabase
-NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_clave_anonima_de_supabase
-```
-
-### Paso 4: Ejecutar en Desarrollo
-
+### Paso 1: Construir la Imagen
+Desde la raíz del proyecto, ejecuta:
 ```bash
-npm run dev
+docker build -t deliciasmoran-web .
 ```
 
-Abre [http://localhost:3000](http://localhost:3000) en tu navegador.
-
-
-
-## 👤 Usuarios de Prueba
-
-| Rol | Email | Contraseña |
-|-----|-------|------------|
-| Administrador | admin@restaurant.com | admin123 |
-| Mesero | waiter@restaurant.com | waiter123 |
-| Chef | chef@restaurant.com | chef123 |
-| Cajero | cashier@restaurant.com | cashier123 |
-
-## 🎨 Características de Diseño
-
-- Interfaz moderna con gradientes y efectos glassmorphism
-- Modo oscuro por defecto
-- Animaciones suaves y micro-interacciones
-- Diseño responsivo para móviles y tablets
-- Iconos intuitivos con Lucide React
-
-## 📝 Scripts Disponibles
-
+### Paso 2: Ejecutar el Contenedor
 ```bash
-npm run dev          # Servidor de desarrollo
-npm run build        # Compilar para producción
-npm run start        # Iniciar servidor de producción
-npm run lint         # Ejecutar linter
+docker run -d -p 80:80 --name deliciasmoran deliciasmoran-web
 ```
-
-## 🔒 Seguridad
-
-- Row Level Security (RLS) habilitado en todas las tablas
-- Políticas de acceso basadas en roles
-- Autenticación segura con Supabase Auth
-- Validaciones en base de datos (constraints)
-
-## 📄 Archivos Importantes
-
-### SQL
-- `supabase-schema.sql` - Esquema completo de la base de datos
-- `fix-rls-policies.sql` - Correcciones de políticas RLS
-- `verify-and-fix-roles.sql` - Verificación y corrección de roles
-
-### Documentación
-- `README.md` - Este archivo
-
-## 🤝 Contribuir
-
-Las contribuciones son bienvenidas. Por favor:
-
-1. Fork el proyecto
-2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
-3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
-4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request
-
-## 📞 Soporte
-
-Si encuentras algún problema o tienes preguntas, por favor abre un issue en el repositorio.
-
-## 📜 Licencia
-
-Este proyecto es de código abierto y está disponible bajo la licencia MIT.
+La aplicación estará disponible en el puerto 80. La configuración interna de Nginx se encarga de servir los archivos estáticos y manejar el enrutamiento de la aplicación (SPA).
 
 ---
 
-Desarrollado con ❤️ para la gestión eficiente de restaurantes
+## 📦 Estructura del Proyecto
+```
+deliciasmoran/
+├── src/                # Código fuente Web (Next.js)
+├── android-app/        # Aplicación Android nativa (Kotlin)
+├── public/             # Archivos estáticos
+├── Dockerfile          # Configuración de Docker para Web
+├── nginx.conf          # Configuración de servidor para Docker
+├── supabase-schema.sql # Estructura de base de datos
+└── README.md           # Documentación
+```
+
+---
+Este proyecto ha sido optimizado para la eficiencia operativa en entornos de restauración real.

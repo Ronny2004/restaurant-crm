@@ -1,0 +1,114 @@
+[
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/layout_activity_product_list.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/layout/activity_product_list.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/drawable_circle_background.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/drawable/circle_background.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/layout_item_cashier_order.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/layout/item_cashier_order.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/drawable_ic_add.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/drawable/ic_add.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/layout_activity_waiter.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/layout/activity_waiter.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/layout_item_product.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/layout/item_product.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/menu_menu_waiter.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/menu/menu_waiter.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/drawable_ic_remove.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/drawable/ic_remove.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/drawable_ic_arrow_back.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/drawable/ic_arrow_back.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/drawable_ic_delete.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/drawable/ic_delete.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/layout_activity_add_edit_product.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/layout/activity_add_edit_product.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/layout_item_waiter_product.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/layout/item_waiter_product.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/layout_activity_chef.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/layout/activity_chef.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/drawable_ic_app_logo.jpg.flat",
+        "source": "com.restaurantcrm.app-main-6:/drawable/ic_app_logo.jpg"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/drawable/ic_launcher_foreground.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/layout_item_detail_row.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/layout/item_detail_row.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/layout_item_chef_order.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/layout/item_chef_order.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/layout_activity_admin.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/layout/activity_admin.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/drawable_ic_chef.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/drawable/ic_chef.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/drawable_ic_cashier.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/drawable/ic_cashier.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/layout_activity_cashier.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/layout/activity_cashier.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/layout_activity_sales_history.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/layout/activity_sales_history.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/layout_activity_login.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/layout/activity_login.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/drawable_rounded_bg_surface.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/drawable/rounded_bg_surface.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/drawable_ic_logout.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/drawable/ic_logout.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/layout_dialog_order_detail.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/layout/dialog_order_detail.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/drawable_ic_waiter.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/drawable/ic_waiter.xml"
+    },
+    {
+        "merged": "com.restaurantcrm.app-debug-4:/drawable_ic_inventory.xml.flat",
+        "source": "com.restaurantcrm.app-main-6:/drawable/ic_inventory.xml"
+    }
+]

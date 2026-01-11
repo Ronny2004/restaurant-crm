@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="#E3F2FD"> <TextView
+    android:id="@+id/tvWaiterTitle"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:text="PANEL DE MESERO"
+    android:textSize="24sp"
+    android:textStyle="bold"
+    android:textColor="#1565C0" />
+
+    <TextView
+        android:id="@+id/tvWaiterAction"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Gestión de Pedidos y Mesas"
+        android:textSize="16sp" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="20dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="Aquí aparecerá el menú..."
+            android:alpha="0.5" />
+    </FrameLayout>
+
+    <Button
+        android:id="@+id/btnLogoutWaiter"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Cerrar Sesión"
+        android:backgroundTint="#1976D2" />
+
+</LinearLayout>
