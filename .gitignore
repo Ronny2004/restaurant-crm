@@ -1,13 +1,18 @@
-# --- DEPENDENCIAS Y CACHÉ ---
+# --- Dependencias ---
 node_modules/
 .pnp
 .pnp.js
 .yarn/
-*.log
-.DS_Store
 
-# --- SEGURIDAD Y SECRETOS (LO MÁS IMPORTANTE) ---
-# Ignora cualquier archivo llamado así en cualquier carpeta
+# --- CARPETAS QUE DICES QUE SE SIGUEN SUBIENDO ---
+respaldosmobile/
+**/respaldosmobile/
+build/
+.gradle/
+.next/
+out/
+
+# --- ARCHIVOS SENSIBLES (ESPECÍFICOS) ---
 SupabaseClient.kt
 local.properties
 google-services.json
@@ -15,32 +20,14 @@ google-services.json
 *.keystore
 .env
 .env*.local
-*.pem
 
-# --- ANDROID (PATRONES GLOBALES) ---
-# Ignora carpetas de compilación e IDE en todo el proyecto
-.gradle/
-build/
-bin/
-gen/
-out/
+# --- IDEs y Editores ---
 .idea/
-*.iml
-
-# --- NEXT.JS / WEB ---
-.next/
-out/
-dist/
-.vercel
-*.tsbuildinfo
-next-env.d.ts
-
-# --- CAPACITOR / MOBILE ---
-/ios/App/Podfile.lock
-/ios/App/Pods
-/respaldosmobile/
-
-# --- EDITORES ---
 .vscode/
-*.swp
-*.sln
+*.iml
+*.sw?
+
+# --- Logs y Varios ---
+*.log
+.DS_Store
+*.pem
