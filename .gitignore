@@ -1,84 +1,46 @@
-# Dependencies
-/node_modules
-/.pnp
+# --- DEPENDENCIAS Y CACHÉ ---
+node_modules/
+.pnp
 .pnp.js
-.yarn/install-state.gz
-
-# Android
-**/android-app/app/build
-**/android-app/.gradle
-**/android-app/local.properties
-**/android-app/*/build
-**/android-app/app/src/main/java/com/restaurantcrm/app/data/SupabaseClient.kt
-**/android-app/.idea
-**/android-app/*.iml
-
-# Respaldos Mobile
-**/respaldosmobile
-
-# Testing
-/coverage
-
-# Next.js
-/.next/
-/out/
-
-# Production
-/build
-/out
-/.next
-/dist
-
-# Misc
+.yarn/
+*.log
 .DS_Store
-*.pem
 
-# Debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Local Env Files
+# --- SEGURIDAD Y SECRETOS (LO MÁS IMPORTANTE) ---
+# Ignora cualquier archivo llamado así en cualquier carpeta
+SupabaseClient.kt
+local.properties
+google-services.json
+*.jks
+*.keystore
 .env
 .env*.local
-.env.development.local
-.env.test.local
-.env.production.local
+*.pem
 
-# Android Security
-/android-app/local.properties
-/android-app/app/src/main/java/com/restaurantcrm/app/data/SupabaseClient.kt
-/android-app/app/google-services.json
-/android-app/*.jks
-/android-app/*.keystore
-
-# Vercel
-.vercel
-
-# TypeScript
-*.tsbuildinfo
-next-env.d.ts
-
-# Capacitor
-/android/app/build
-/android/.gradle
-/android/local.properties
-/android/*/build
-/ios/App/App/public
-/ios/App/Podfile.lock
-/ios/App/Pods
-
-# Editor directories and files
-.idea
-.vscode
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-.classpath
-.project
-.settings
+# --- ANDROID (PATRONES GLOBALES) ---
+# Ignora carpetas de compilación e IDE en todo el proyecto
+.gradle/
+build/
 bin/
 gen/
 out/
+.idea/
+*.iml
+
+# --- NEXT.JS / WEB ---
+.next/
+out/
+dist/
+.vercel
+*.tsbuildinfo
+next-env.d.ts
+
+# --- CAPACITOR / MOBILE ---
+/ios/App/Podfile.lock
+/ios/App/Pods
+/respaldosmobile/
+
+# --- EDITORES ---
+.vscode/
+*.swp
+*.sln
