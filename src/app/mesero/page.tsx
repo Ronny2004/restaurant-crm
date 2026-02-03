@@ -4,8 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useSupabase, Product } from "@/context/SupabaseProvider";
-import Link from "next/link";
-import { ChevronLeft, Plus, Minus, ShoppingCart, LogOut, Loader2, Send } from "lucide-react";
+import { Plus, Minus, ShoppingCart, LogOut, Loader2, Send } from "lucide-react";
 import { RoleNavigation } from "@/components/RoleNavigation";
 import { useToast } from "@/context/ToastContext";
 
@@ -33,16 +32,29 @@ export default function MeseroPage() {
     }
 
     const addToCart = (product: Product) => {
+        // 1. Validar si el producto tiene stock inicial
+        if (product.stock <= 0) {
+            toast(`Sin stock: ${product.name}`, "error");
+            return;
+        }
+
         setCart((prev) => {
             const existing = prev.find((p) => p.product.id === product.id);
+
+            // 2. Si ya está en el carrito, validar que la nueva cantidad no supere el stock
             if (existing) {
+                if (existing.quantity >= product.stock) {
+                    toast(`Solo hay ${product.stock} unidades disponibles`, "error");
+                    return prev;
+                }
                 return prev.map((p) =>
                     p.product.id === product.id ? { ...p, quantity: p.quantity + 1 } : p
                 );
             }
+
+            toast(`Agregado: ${product.name}`, "info");
             return [...prev, { product, quantity: 1 }];
         });
-        toast(`Agregado: ${product.name}`, "info");
     };
 
     const removeFromCart = (productId: string) => {
@@ -68,10 +80,18 @@ export default function MeseroPage() {
         }
     };
 
+    //Filtrado
     const total = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
     const activeOrders = orders.filter(o => o.status !== 'paid').sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    const productosDisponibles = products.filter(p => p.stock > 0);
 
-    if (loading) return <div className="container">Cargando...</div>;
+    if (authLoading || loading) {
+        return (
+            <div className="container" style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Loader2 size={48} style={{ animation: "spin 1s linear infinite", color: "var(--primary)" }} />
+            </div>
+        );
+    }
 
     return (
         <div className="container">
@@ -81,31 +101,36 @@ export default function MeseroPage() {
             </header>
 
             <div className="waiter-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "2rem" }}>
-                {/* Product Grid */}
                 <div>
                     <h2 style={{ marginBottom: "1rem" }}>Menú</h2>
                     <div className="grid-menu">
-                        {products.map((product) => (
-                            <div key={product.id} className="glass-panel" style={{ padding: "1.5rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
-                                    <h3 style={{ fontSize: "1.2rem" }}>{product.name}</h3>
-                                    <span style={{ color: "var(--primary)", fontWeight: "bold" }}>${product.price.toFixed(2)}</span>
+                        {/* REEMPLAZO: Usamos productosDisponibles en lugar de products */}
+                        {productosDisponibles.length === 0 ? (
+                            <p style={{ color: "var(--text-muted)" }}>No hay productos con stock disponible.</p>
+                        ) : (
+                            productosDisponibles.map((product) => (
+                                <div key={product.id} className="glass-panel" style={{ padding: "1.5rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
+                                        <h3 style={{ fontSize: "1.2rem" }}>{product.name}</h3>
+                                        <span style={{ color: "var(--primary)", fontWeight: "bold" }}>${product.price.toFixed(2)}</span>
+                                    </div>
+                                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                                        <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>{product.category}</p>
+                                        <small style={{ color: "var(--success)" }}>Stock: {product.stock}</small>
+                                    </div>
+                                    <div style={{ marginTop: "auto", paddingTop: "1rem" }}>
+                                        <button onClick={() => addToCart(product)} className="btn btn-primary" style={{ width: "100%" }}>
+                                            <Plus size={18} /> Agregar
+                                        </button>
+                                    </div>
                                 </div>
-                                <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>{product.category}</p>
-                                <div style={{ marginTop: "auto", paddingTop: "1rem" }}>
-                                    <button onClick={() => addToCart(product)} className="btn btn-primary" style={{ width: "100%" }}>
-                                        <Plus size={18} /> Agregar
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
+                            ))
+                        )}
                     </div>
                 </div>
 
                 {/* Right Column: Cart + Active Orders */}
                 <div style={{ position: "sticky", top: "2rem", height: "fit-content", display: "flex", flexDirection: "column", gap: "2rem" }}>
-
-                    {/* Cart Panel */}
                     <div className="glass-panel" style={{ padding: "1.5rem" }}>
                         <h2 style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1.5rem" }}>
                             <ShoppingCart /> Comanda

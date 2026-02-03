@@ -13,7 +13,7 @@ import { RoleNavigation } from "@/components/RoleNavigation";
 export default function AdminPage() {
     const { profile, loading: authLoading, signOut } = useAuth();
     const router = useRouter();
-    const { products, orders, loading,fetchProducts, createProduct, updateProduct, deleteProduct } = useSupabase();
+    const { products, orders, loading, fetchProducts, createProduct, updateProduct, deleteProduct } = useSupabase();
     const toast = useToast();
 
     const [isAddingProduct, setIsAddingProduct] = useState(false);
@@ -76,28 +76,28 @@ export default function AdminPage() {
         }
     };
 
-const confirmDelete = async () => {
-    if (deletingProduct) {
-        try {
-            // Intentamos borrar en la base de datos
-            await deleteProduct(deletingProduct.id);
-            
-            // Si llega aquí, es porque se borró correctamente
-            setDeletingProduct(null);
-            toast("Producto eliminado con éxito", "success");
-        } catch (error: any) {
-            // Capturamos el mensaje específico (ej: "No se puede eliminar porque tiene ventas")
-            const errorMessage = error.message || "Error al eliminar producto";
-            toast(errorMessage, "error");
-            
-            // Forzamos un refresco por si la UI se desincronizó
-            fetchProducts(); 
-        } finally {
-            // Cerramos el modal de confirmación pase lo que pase
-            setDeletingProduct(null);
+    const confirmDelete = async () => {
+        if (deletingProduct) {
+            try {
+                // Intentamos borrar en la base de datos
+                await deleteProduct(deletingProduct.id);
+
+                // Si llega aquí, es porque se borró correctamente
+                setDeletingProduct(null);
+                toast("Producto eliminado con éxito", "success");
+            } catch (error: any) {
+                // Capturamos el mensaje específico (ej: "No se puede eliminar porque tiene ventas")
+                const errorMessage = error.message || "Error al eliminar producto";
+                toast(errorMessage, "error");
+
+                // Forzamos un refresco por si la UI se desincronizó
+                fetchProducts();
+            } finally {
+                // Cerramos el modal de confirmación pase lo que pase
+                setDeletingProduct(null);
+            }
         }
-    }
-};
+    };
 
     const startEdit = (product: Product) => {
         setEditingProductId(product.id);
@@ -131,7 +131,7 @@ const confirmDelete = async () => {
 
             {/* Stats Grid */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "1.5rem", marginBottom: "3rem" }}>
-                
+
                 {/* Enlace a Ventas Totales */}
                 <Link href="/admin/ventastotales" style={{ textDecoration: 'none', color: 'inherit' }}>
                     <div className="glass-panel stat-card-hover" style={{ padding: "1.5rem", display: "flex", alignItems: "center", gap: "1rem", cursor: "pointer", transition: "transform 0.2s" }}>
@@ -210,13 +210,18 @@ const confirmDelete = async () => {
                                     />
                                 </td>
                                 <td style={{ padding: "1rem" }}>
-                                    <input
-                                        type="text"
+                                    <select
                                         value={formData.category}
                                         onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                                        placeholder="Categoría"
-
-                                    />
+                                        style={{ width: "100%", padding: "0.4rem", borderRadius: "4px", background: "var(--surface)", color: "white" }}
+                                    >
+                                        <option value="">Seleccionar...</option>
+                                        <option value="platos">Platos</option>
+                                        <option value="bebidas">Bebidas</option>
+                                        <option value="porciones">Porciones</option>
+                                        {/* A la larga, aquí puedes mapear un array 'categorias.map(...)' 
+                                            que venga de una tabla de base de datos o un diccionario */}
+                                    </select>
                                 </td>
                                 <td style={{ padding: "1rem" }}>
                                     <input
