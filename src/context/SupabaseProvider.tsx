@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 // Types
@@ -51,56 +51,21 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
 
-    // 1. Carga inicial de datos
-    useEffect(() => {
-        const init = async () => {
-            try {
-                await Promise.all([fetchProducts(), fetchOrders()]);
-            } catch (error) {
-                console.error("Error inicializando datos:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        init();
-
-        // 1. Creamos el canal
-        const channel = supabase
-            .channel('db-changes')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-                fetchOrders();
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
-                fetchProducts();
-            })
-            .subscribe();
-
-        // 2. LA SOLUCIÓN: Retornar la función de limpieza
-        return () => {
-            // Esto cierra la conexión de forma segura al cambiar de página
-            supabase.removeChannel(channel);
-        };
-    }, []);
-
-    const fetchProducts = async () => {
+    // Usamos useCallback para que las funciones no cambien en cada render
+    const fetchProducts = useCallback(async () => {
         const { data, error } = await supabase
             .from("products")
             .select("*")
-            .order('name', { ascending: true }); // 1. Ordenar para que no "salten" los items
+            .order('name', { ascending: true });
 
         if (error) {
             console.error("Error al obtener los productos:", error);
             return;
         }
-        if (data) {
-            setProducts([...data]);
-        }
-        else if (error) console.error("Error al obtener los productos:", error);
-    };
+        if (data) setProducts([...data]);
+    }, []);
 
-    // Obtenemos órdenes con sus ítems y el nombre del producto en una sola consulta
-    const fetchOrders = async () => {
+    const fetchOrders = useCallback(async () => {
         const { data, error } = await supabase
             .from("orders")
             .select(`
@@ -117,7 +82,6 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
             return;
         }
 
-        // Mapeamos para que coincida con tu interfaz 'Order'
         const formattedOrders = data.map((order: any) => ({
             ...order,
             items: order.items.map((item: any) => ({
@@ -127,12 +91,65 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         }));
 
         setOrders(formattedOrders as Order[]);
-    };
+    }, []);
+
+    // 1. Carga inicial de datos
+    useEffect(() => {
+        let retryCount = 0;
+        const maxRetries = 3;
+
+        const init = async () => {
+            setLoading(true);
+            try {
+                await Promise.all([fetchProducts(), fetchOrders()]);
+            } catch (error) {
+                if (retryCount < maxRetries) {
+                    retryCount++;
+                    setTimeout(init, 1000); // Re-intento si falla la conexión inicial
+                }
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        init();
+
+        // Suscripción Realtime consolidada en un solo canal para evitar latencia
+        const channel = supabase
+            .channel('db-changes')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'orders' },
+                () => {
+                    console.log("Cambio en pedidos detectado");
+                    fetchOrders();
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'products' },
+                () => {
+                    console.log("Cambio en productos detectado");
+                    fetchProducts();
+                }
+            )
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED') {
+                    console.log("Conectado a Realtime correctamente");
+                }
+            });
+
+        return () => {
+            isMounted = false;
+            supabase.removeChannel(channel);
+        };
+    }, [fetchProducts, fetchOrders]); // Ahora dependemos de las funciones memoizadas
 
     // --- Funciones CRUD (Escritura) ---
     const createOrder = async (table: string, items: { product: Product; quantity: number }[]) => {
         try {
             const total = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+            const user = (await supabase.auth.getUser()).data.user;
 
             // 1. Preparamos los items en el formato JSON que espera la función SQL (RPC)
             const itemsJson = items.map(item => ({
@@ -145,34 +162,12 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
             // Esta función se encarga de: Crear la orden, insertar los ítems y DESCONTAR el stock
             const { data: orderId, error: rpcError } = await supabase.rpc('create_full_order', {
                 p_table_number: table,
-                p_user_id: (await supabase.auth.getUser()).data.user?.id, // Obtenemos el ID del usuario actual
+                p_user_id: user?.id, // Obtenemos el ID del usuario actual
                 p_items: itemsJson,
                 p_total: total
             });
 
             if (rpcError) throw rpcError;
-
-            // 3. ACTUALIZACIÓN OPTIMISTA DEL ESTADO LOCAL
-            // Para que el mesero vea el pedido inmediatamente sin esperar al Realtime
-            const newOrderForState: Order = {
-                id: orderId,
-                table_number: table,
-                status: "pending",
-                total: total,
-                created_at: new Date().toISOString(),
-                items: items.map(i => ({
-                    id: Math.random().toString(), // ID temporal
-                    product_id: i.product.id,
-                    product_name: i.product.name,
-                    quantity: i.quantity,
-                    price: i.product.price
-                }))
-            };
-
-            setOrders(prev => [newOrderForState, ...prev]);
-
-            // Opcional: Refrescar productos para actualizar el stock localmente
-            fetchProducts();
 
         } catch (error: any) {
             console.error("Error detallado en createOrder:", error.message);
@@ -277,7 +272,17 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
             createProduct,
             updateProduct,
             deleteProduct,
-            getSalesData,
+            getSalesData: async (start, end) => {
+                const { data, error } = await supabase
+                    .from("orders")
+                    .select("*, items:order_items(*, product:products(name))")
+                    .gte('created_at', start.toISOString())
+                    .lte('created_at', end.toISOString())
+                    .eq('status', 'paid')
+                    .order('created_at', { ascending: false });
+                if (error) throw error;
+                return data as Order[];
+            },
             loading
         }}>
             {children}

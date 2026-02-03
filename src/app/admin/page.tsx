@@ -21,10 +21,14 @@ export default function AdminPage() {
     const [deletingProduct, setDeletingProduct] = useState<{ id: string; name: string } | null>(null);
     const [formData, setFormData] = useState({ name: "", price: 0, category: "", stock: 0 });
 
+
     // Protección de ruta
     useEffect(() => {
         if (!authLoading && (!profile || profile.role !== "admin")) {
             router.push("/login");
+        }
+        if (products.length === 0) {
+            fetchProducts();
         }
     }, [authLoading, profile, router]);
 
@@ -36,7 +40,14 @@ export default function AdminPage() {
         );
     }
 
-    if (loading) return <div className="container">Cargando...</div>;
+    if (loading && products.length === 0) {
+        return (
+            <div className="container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '5rem' }}>
+                <Loader2 size={40} className="animate-spin" style={{ color: 'var(--primary)' }} />
+                <p style={{ marginTop: '1rem' }}>Sincronizando Inventario...</p>
+            </div>
+        );
+    }
 
     // Cálculos de Stats
     const totalSales = orders
