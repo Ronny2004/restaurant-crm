@@ -19,9 +19,9 @@
 }
 
 .stat-card-hover:hover {
-    transform: translateY(-5px);
-    background: rgba(255, 255, 255, 0.08) !important;
-    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+  transform: translateY(-5px);
+  background: rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
 }
 
 body {
@@ -125,6 +125,12 @@ body {
   background: rgba(239, 68, 68, 0.1);
   color: var(--danger);
   border: 1px solid rgba(239, 68, 68, 0.5);
+}
+
+.btn-success {
+  background: rgba(245, 158, 11, 0.2);
+  color: rgba(235, 213, 23, 0.87);
+  border: 1px solid rgba(220, 235, 18, 0.87);
 }
 
 .btn-danger:hover:not(:disabled) {

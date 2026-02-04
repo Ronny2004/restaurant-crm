@@ -1,28 +1,35 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useSupabase, Order } from "@/context/SupabaseProvider";
-import Link from "next/link";
-import { ChevronLeft, Clock, CheckCircle, LogOut, Loader2 } from "lucide-react";
+import { Clock, CheckCircle, Loader2, Play, Check } from "lucide-react";
 import { RoleNavigation } from "@/components/RoleNavigation";
+import { useToast } from "@/context/ToastContext";
 
 export default function CocinaPage() {
     const { profile, loading: authLoading } = useAuth();
     const router = useRouter();
-    const { orders, updateOrderStatus, loading } = useSupabase();
+    const { orders, updateOrderStatus, loading, fetchOrders } = useSupabase();
+    const toast = useToast();
+    const [processingId, setProcessingId] = useState<string | null>(null);
 
+    // 1. Protección y Carga Inicial Forzada
     useEffect(() => {
         if (!authLoading && (!profile || (profile.role !== "chef" && profile.role !== "admin"))) {
             router.push("/login");
         }
-    }, [authLoading, profile, router]);
+        // Si entramos y no hay órdenes, forzamos carga
+        if (!authLoading && profile && orders.length === 0) {
+            fetchOrders();
+        }
+    }, [authLoading, profile, router, orders.length, fetchOrders]);
 
-    if (authLoading || !profile || (profile.role !== "chef" && profile.role !== "admin")) {
+    if (authLoading || (loading && orders.length === 0)) {
         return (
             <div className="container" style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Loader2 size={48} style={{ animation: "spin 1s linear infinite", color: "var(--primary)" }} />
+                <Loader2 size={48} className="animate-spin" style={{ color: "var(--primary)" }} />
             </div>
         );
     }
@@ -30,11 +37,24 @@ export default function CocinaPage() {
     // Filter for active kitchen orders (pending or preparing)
     const kitchenOrders = orders.filter(o => o.status === 'pending' || o.status === 'preparing');
 
-    if (loading) return <div className="container">Cargando...</div>;
-
     const handleStatusChange = async (orderId: string, currentStatus: string) => {
+        setProcessingId(orderId); // preventivo actualizacion de estado en tiempo real
         const nextStatus = currentStatus === 'pending' ? 'preparing' : 'ready';
-        await updateOrderStatus(orderId, nextStatus as Order['status']);
+
+        try {
+            await updateOrderStatus(orderId, nextStatus as Order['status']);
+
+            // ACTUALIZACIÓN INSTANTÁNEA (Optimista)
+            // Si el estado es 'ready', desaparecerá del filtro kitchenOrders automáticamente
+            toast(nextStatus === 'preparing' ? "Pedido en preparación" : "¡Pedido listo!", "success");
+
+            // Forzamos un refresco local inmediato por si el Realtime de Supabase tiene lag
+            fetchOrders();
+        } catch (error) {
+            toast("Error al actualizar estado", "error");
+        } finally {
+            setProcessingId(null);
+        }
     };
 
     return (
@@ -47,34 +67,43 @@ export default function CocinaPage() {
             {kitchenOrders.length === 0 ? (
                 <div className="glass-panel" style={{ padding: "3rem", textAlign: "center", fontStyle: "italic", color: "var(--text-muted)" }}>
                     <CheckCircle size={48} style={{ marginBottom: "1rem", opacity: 0.5 }} />
-                    <p>No hay pedidos pendientes. ¡Buen trabajo!</p>
+                    <p>No hay pedidos pendientes</p>
                 </div>
             ) : (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "1.5rem" }}>
                     {kitchenOrders.map((order) => (
                         <div key={order.id} className="glass-panel" style={{
                             padding: "1.5rem",
-                            borderLeft: `4px solid ${order.status === 'pending' ? 'var(--danger)' : 'var(--primary)'}`
+                            display: "flex",
+                            flexDirection: "column",
+                            borderLeft: `6px solid ${order.status === 'pending' ? '#f97316' : 'var(--warning)'}`,
+                            opacity: processingId === order.id ? 0.6 : 1,
+                            transition: 'all 0.3s ease'
                         }}>
                             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1rem" }}>
-                                <h2 style={{ fontSize: "1.2rem" }}>Mesa {order.table_number}</h2>
+                                <h2 style={{ fontSize: "1.3rem" }}>Mesa {order.table_number}</h2>
                                 <span style={{
                                     background: order.status === 'pending' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(245, 158, 11, 0.2)',
-                                    color: order.status === 'pending' ? '#fca5a5' : '#fcd34d',
+                                    color: order.status === 'pending' ? '#f97316' : '#fcd34d',
                                     padding: "0.25rem 0.5rem",
                                     borderRadius: "4px",
                                     fontSize: "0.8rem",
-                                    textTransform: "uppercase",
                                     fontWeight: "bold"
                                 }}>
                                     {order.status === 'pending' ? 'Pendiente' : 'En Preparación'}
                                 </span>
                             </div>
 
-                            <div style={{ marginBottom: "1.5rem" }}>
+                            <div style={{ marginBottom: "2rem", flexGrow: 1 }}>
                                 {order.items.map((item, idx) => (
-                                    <div key={idx} style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem", borderBottom: "1px dashed rgba(255,255,255,0.1)", paddingBottom: "0.25rem" }}>
-                                        <span>{item.quantity}x {item.product_name}</span>
+                                    <div key={idx} style={{
+                                        display: "flex",
+                                        gap: "0.8rem",
+                                        padding: "0.6rem 0",
+                                        borderBottom: "1px solid rgba(255,255,255,0.05)"
+                                    }}>
+                                        <span style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{item.quantity}x</span>
+                                        <span style={{ fontSize: '1.05rem' }}>{item.product_name}</span>
                                     </div>
                                 ))}
                             </div>
@@ -85,10 +114,25 @@ export default function CocinaPage() {
                                     {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </div>
                                 <button
-                                    className="btn btn-primary"
+                                    disabled={processingId === order.id}
+                                    className={`btn ${order.status === 'pending' ? 'btn-danger' : 'btn-success'}`}
                                     onClick={() => handleStatusChange(order.id, order.status)}
+                                    style={{
+                                        padding: "0.6rem 1.2rem",
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        minWidth: '140px',
+                                        justifyContent: 'center'
+                                    }}
                                 >
-                                    {order.status === 'pending' ? 'Empezar' : 'Marcar Listo'}
+                                    {processingId === order.id ? (
+                                        <Loader2 size={18} className="animate-spin" />
+                                    ) : order.status === 'pending' ? (
+                                        <>Empezar</>
+                                    ) : (
+                                        <>Listo</>
+                                    )}
                                 </button>
                             </div>
                         </div>
