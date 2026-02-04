@@ -142,6 +142,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
                 }
             });
 
+
         return () => {
             // Ahora la variable sí existe en este ámbito
             isMounted = false;
