@@ -11,7 +11,7 @@ import { useToast } from "@/context/ToastContext";
 export default function MeseroPage() {
     const { profile, loading: authLoading } = useAuth();
     const router = useRouter();
-    const { products, createOrder, loading, orders } = useSupabase(); // Added orders
+    const { products, createOrder, loading: supabaseLoading, orders, fetchProducts } = useSupabase();
     const toast = useToast();
     const [cart, setCart] = useState<{ product: Product; quantity: number }[]>([]);
     const [table, setTable] = useState("");
@@ -21,12 +21,20 @@ export default function MeseroPage() {
         if (!authLoading && (!profile || (profile.role !== "waiter" && profile.role !== "admin"))) {
             router.push("/login");
         }
-    }, [authLoading, profile, router]);
+        if (!authLoading && profile && products.length === 0) {
+            fetchProducts();
+        }
+    }, [authLoading, profile, router, products.length, fetchProducts]);
 
-    if (authLoading || !profile || (profile.role !== "waiter" && profile.role !== "admin")) {
+    const productosDisponibles = products.filter(p => p.stock > 0);
+
+    if (authLoading || (supabaseLoading && products.length === 0)) {
         return (
             <div className="container" style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Loader2 size={48} style={{ animation: "spin 1s linear infinite", color: "var(--primary)" }} />
+                <div style={{ textAlign: 'center' }}>
+                    <Loader2 size={48} className="animate-spin" style={{ color: "var(--primary)", margin: '0 auto' }} />
+                    <p style={{ marginTop: '1rem', color: 'var(--text-muted)' }}>Sincronizando menú real-time...</p>
+                </div>
             </div>
         );
     }
@@ -58,11 +66,9 @@ export default function MeseroPage() {
     };
 
     const removeFromCart = (productId: string) => {
-        setCart((prev) => {
-            return prev
-                .map((p) => (p.product.id === productId ? { ...p, quantity: p.quantity - 1 } : p))
-                .filter((p) => p.quantity > 0);
-        });
+        setCart((prev) => prev.map((p) =>
+            p.product.id === productId ? { ...p, quantity: p.quantity - 1 } : p
+        ).filter((p) => p.quantity > 0));
     };
 
     const handleCreateOrder = async () => {
@@ -83,15 +89,6 @@ export default function MeseroPage() {
     //Filtrado
     const total = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
     const activeOrders = orders.filter(o => o.status !== 'paid').sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    const productosDisponibles = products.filter(p => p.stock > 0);
-
-    if (authLoading || loading) {
-        return (
-            <div className="container" style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Loader2 size={48} style={{ animation: "spin 1s linear infinite", color: "var(--primary)" }} />
-            </div>
-        );
-    }
 
     return (
         <div className="container">
@@ -101,12 +98,17 @@ export default function MeseroPage() {
             </header>
 
             <div className="waiter-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "2rem" }}>
+                {/* Product Grid */}
                 <div>
                     <h2 style={{ marginBottom: "1rem" }}>Menú</h2>
                     <div className="grid-menu">
-                        {/* REEMPLAZO: Usamos productosDisponibles en lugar de products */}
                         {productosDisponibles.length === 0 ? (
-                            <p style={{ color: "var(--text-muted)" }}>No hay productos con stock disponible.</p>
+                            <div className="glass-panel" style={{ padding: '2rem', textAlign: 'center' }}>
+                                <p style={{ color: "var(--text-muted)" }}>No hay productos disponibles en este momento.</p>
+                                <button onClick={() => fetchProducts()} className="btn btn-secondary" style={{ marginTop: '1rem' }}>
+                                    Reintentar cargar menú
+                                </button>
+                            </div>
                         ) : (
                             productosDisponibles.map((product) => (
                                 <div key={product.id} className="glass-panel" style={{ padding: "1.5rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
@@ -137,7 +139,7 @@ export default function MeseroPage() {
                         </h2>
 
                         <div style={{ marginBottom: "1.5rem" }}>
-                            <label style={{ display: "block", marginBottom: "0.5rem", color: "var(--text-muted)" }}>Mesa #</label>
+                            <label style={{ display: "block", marginBottom: "0.5rem", color: "var(--text-muted)" }}>Numero de Mesa </label>
                             <input
                                 type="text"
                                 value={table}
