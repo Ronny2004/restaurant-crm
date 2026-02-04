@@ -94,27 +94,30 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     // 1. Carga inicial de datos
+    // 1. Carga inicial de datos
     useEffect(() => {
+        // DECLARACIÓN VITAL PARA EVITAR EL ERROR
+        let isMounted = true;
         let retryCount = 0;
         const maxRetries = 3;
 
         const init = async () => {
-            setLoading(true);
+            // Solo actualizamos el estado si el componente sigue montado
+            if (isMounted) setLoading(true);
             try {
                 await Promise.all([fetchProducts(), fetchOrders()]);
             } catch (error) {
-                if (retryCount < maxRetries) {
+                if (isMounted && retryCount < maxRetries) {
                     retryCount++;
-                    setTimeout(init, 1000); // Re-intento si falla la conexión inicial
+                    setTimeout(init, 1000);
                 }
             } finally {
-                setLoading(false);
+                if (isMounted) setLoading(false);
             }
         };
 
         init();
 
-        // Suscripción Realtime consolidada en un solo canal para evitar latencia
         const channel = supabase
             .channel('db-changes')
             .on(
@@ -140,10 +143,11 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
             });
 
         return () => {
+            // Ahora la variable sí existe en este ámbito
             isMounted = false;
             supabase.removeChannel(channel);
         };
-    }, [fetchProducts, fetchOrders]); // Ahora dependemos de las funciones memoizadas
+    }, [fetchProducts, fetchOrders]);
 
     // --- Funciones CRUD (Escritura) ---
     const createOrder = async (table: string, items: { product: Product; quantity: number }[]) => {
