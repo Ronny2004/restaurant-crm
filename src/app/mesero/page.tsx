@@ -42,7 +42,8 @@ export default function MeseroPage() {
     const addToCart = (product: Product) => {
         // 1. Validar si el producto tiene stock inicial
         if (product.stock <= 0) {
-            toast(`Sin stock: ${product.name}`, "error");
+            // En lugar de llamar al toast directo, espera un milisegundo
+            setTimeout(() => toast(`Sin stock: ${product.name}`, "error"), 0);
             return;
         }
 
@@ -60,7 +61,7 @@ export default function MeseroPage() {
                 );
             }
 
-            toast(`Agregado: ${product.name}`, "info");
+            setTimeout(() => toast(`Agregado: ${product.name}`, "info"), 0);
             return [...prev, { product, quantity: 1 }];
         });
     };

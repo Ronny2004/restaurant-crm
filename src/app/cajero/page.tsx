@@ -1,15 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useSupabase, Order } from "@/context/SupabaseProvider";
-import Link from "next/link";
-import { ChevronLeft, DollarSign, Receipt, LogOut, Loader2 } from "lucide-react";
+import { DollarSign, Loader2, Lock } from "lucide-react"; // Añadido icono de candadoimport { RoleNavigation } from "@/components/RoleNavigation";
 import { RoleNavigation } from "@/components/RoleNavigation";
 import { useToast } from "@/context/ToastContext";
 import { Modal } from "@/components/ui/Modal";
-import { useState } from "react";
 
 export default function CajeroPage() {
     const { profile, loading: authLoading } = useAuth();
@@ -32,9 +30,6 @@ export default function CajeroPage() {
         );
     }
 
-    // Filter for completed orders (ready) or manual payment (pending pay)
-    // Usually Cashier sees "Ready" items to hand over and Pay, or just all unpaid.
-    // Let's show all unpaid orders, prioritizing 'ready'.
     const unpaidOrders = orders.filter(o => o.status !== 'paid');
 
     if (loading) return <div className="container">Cargando...</div>;
@@ -75,46 +70,69 @@ export default function CajeroPage() {
                                 <td colSpan={5} style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)" }}>No hay órdenes pendientes de cobro.</td>
                             </tr>
                         ) : (
-                            unpaidOrders.map((order) => (
-                                <tr key={order.id} style={{ borderBottom: "1px solid var(--border)" }}>
-                                    <td style={{ padding: "1rem" }}>
-                                        <span style={{ fontWeight: "bold", fontSize: "1.1rem" }}>#{order.table_number}</span>
-                                        <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                                            {new Date(order.created_at).toLocaleTimeString()}
-                                        </div>
-                                    </td>
-                                    <td style={{ padding: "1rem" }}>
-                                        {order.items.length} items
-                                        <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", maxWidth: "200px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                            {order.items.map(i => i.product_name).join(", ")}
-                                        </div>
-                                    </td>
-                                    <td style={{ padding: "1rem" }}>
-                                        <span style={{
-                                            padding: "0.25rem 0.75rem",
-                                            borderRadius: "99px",
-                                            fontSize: "0.85rem",
-                                            background: order.status === 'ready' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(255, 255, 255, 0.1)',
-                                            color: order.status === 'ready' ? '#4ade80' : 'var(--text-muted)'
-                                        }}>
-                                            {order.status === 'ready' ? 'Listo p/ Servir' : order.status}
-                                        </span>
-                                    </td>
-                                    <td style={{ padding: "1rem", textAlign: "right", fontWeight: "bold", fontSize: "1.1rem" }}>
-                                        ${order.total.toFixed(2)}
-                                    </td>
-                                    <td style={{ padding: "1rem", textAlign: "center" }}>
-                                        <button onClick={() => setConfirmingPay(order.id)} className="btn btn-primary" style={{ padding: "0.5rem 1rem", fontSize: "0.9rem" }}>
-                                            <DollarSign size={16} /> Cobrar
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))
+                            unpaidOrders.map((order) => {
+                                // VALIDACIÓN CLAVE: Solo habilitar si está 'ready'
+                                const canPay = order.status === 'ready';
+
+                                return (
+                                    <tr key={order.id} style={{
+                                        borderBottom: "1px solid var(--border)",
+                                        opacity: canPay ? 1 : 0.7 // Opacidad menor para lo que no se puede cobrar aún
+                                    }}>
+                                        <td style={{ padding: "1rem" }}>
+                                            <span style={{ fontWeight: "bold", fontSize: "1.1rem" }}>#{order.table_number}</span>
+                                            <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                                                {new Date(order.created_at).toLocaleTimeString()}
+                                            </div>
+                                        </td>
+                                        <td style={{ padding: "1rem" }}>
+                                            {order.items.length} items
+                                            <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", maxWidth: "200px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                                {order.items.map(i => i.product_name).join(", ")}
+                                            </div>
+                                        </td>
+                                        <td style={{ padding: "1rem" }}>
+                                            <span style={{
+                                                padding: "0.25rem 0.75rem",
+                                                borderRadius: "99px",
+                                                fontSize: "0.85rem",
+                                                background: order.status === 'ready' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(255, 255, 255, 0.1)',
+                                                color: order.status === 'ready' ? '#4ade80' : 'var(--text-muted)'
+                                            }}>
+                                                {order.status === 'ready' ? 'Listo p/ Servir' :
+                                                    order.status === 'preparing' ? 'En Cocina' : 'En Espera'}
+                                            </span>
+                                        </td>
+                                        <td style={{ padding: "1rem", textAlign: "right", fontWeight: "bold", fontSize: "1.1rem" }}>
+                                            ${order.total.toFixed(2)}
+                                        </td>
+                                        <td style={{ padding: "1rem", textAlign: "center" }}>
+                                            <button
+                                                onClick={() => setConfirmingPay(order.id)}
+                                                className={`btn ${canPay ? 'btn-primary' : 'btn-secondary'}`}
+                                                disabled={!canPay} // Bloquea el botón si no está listo
+                                                style={{
+                                                    padding: "0.5rem 1rem",
+                                                    fontSize: "0.9rem",
+                                                    cursor: canPay ? 'pointer' : 'not-allowed',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '0.5rem'
+                                                }}
+                                            >
+                                                {canPay ? <DollarSign size={16} /> : <Lock size={16} />}
+                                                {canPay ? 'Cobrar' : 'Pendiente'}
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })
                         )}
                     </tbody>
                 </table>
             </div>
 
+            {/* Modal de Confirmación */}
             <Modal
                 isOpen={!!confirmingPay}
                 onClose={() => setConfirmingPay(null)}
