@@ -148,8 +148,8 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
             isMounted = false;
             supabase.removeChannel(channel);
         };
-    // }, [fetchProducts, fetchOrders]);
-    }, []);
+    }, [fetchProducts, fetchOrders]);
+    // }, []);
 
     // --- Funciones CRUD (Escritura) ---
     const createOrder = async (table: string, items: { product: Product; quantity: number }[]) => {
