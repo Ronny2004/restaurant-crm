@@ -57,6 +57,9 @@ export default function LoginPage() {
                     <p style={{ color: "var(--text-muted)" }}>
                         Ingresa tus credenciales para continuar
                     </p>
+                    <p style={{ color: "var(--text-muted)" }}>
+                        hola mundo
+                    </p>
                 </div>
 
                 <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
