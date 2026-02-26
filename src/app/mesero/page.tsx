@@ -203,9 +203,7 @@ export default function MeseroPage() {
 
     const handleMarkAsServed = async (orderId: string) => {
         try {
-            // Usamos updateOrderStatus que ya viene de tu SupabaseProvider
-            // (Le ponemos 'as any' temporalmente por si tu type en TypeScript aún no tiene 'served')
-            await updateOrderStatus(orderId, 'served' as any);
+            await updateOrderStatus(orderId, 'ready' as any);
             toast("¡Pedido servido con éxito!", "success");
         } catch (error: any) {
             toast("Error al actualizar el estado", "error");
@@ -215,8 +213,10 @@ export default function MeseroPage() {
 
     const total = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
     // Ocultamos tanto los 'paid' (pagados) como los 'served' (entregados en mesa)
-    const activeOrders = orders.filter(o => o.status !== 'paid' && o.status !== 'served').sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
+    const activeOrders = orders.filter(o => 
+        o.status !== 'paid' && 
+        o.status !== 'ready'
+    ).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     // Total dinámico para el modal de edición (Soporta data de Supabase y del Carrito temporal)
     const editTotal = editCart.reduce((sum, item) => {
         const price = item.price || item.product?.price || 0;
@@ -324,84 +324,75 @@ export default function MeseroPage() {
                     {/* PEDIDOS ACTIVOS */}
                     <div className="glass-panel" style={{ padding: "1.5rem" }}>
                         <h2 style={{ marginBottom: "1rem", fontSize: "1.2rem" }}>Pedidos Activos</h2>
-                        {activeOrders.length === 0 ? (
-                            <p style={{ color: "var(--text-muted)", fontStyle: "italic" }}>No hay pedidos activos.</p>
-                        ) : (
-                            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                                {activeOrders.map(order => (
-                                    <div key={order.id} style={{
-                                        padding: "1rem",
-                                        background: "rgba(255,255,255,0.03)",
-                                        borderRadius: "8px",
-                                        borderLeft: `4px solid ${order.status === 'ready' ? 'var(--success)' : order.status === 'preparing' ? 'var(--primary)' : 'var(--danger)'}`
+                        {activeOrders.map(order => (
+                            <div key={order.id} style={{
+                                padding: "1rem",
+                                background: "rgba(255,255,255,0.03)",
+                                borderRadius: "8px",
+                                borderLeft: `4px solid ${order.status === 'served' || order.status === 'ready' ? 'var(--success)' : order.status === 'preparing' ? 'var(--primary)' : 'var(--danger)'}`
+                            }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem" }}>
+                                    <span style={{ fontWeight: "bold" }}>Mesa {order.table_number}</span>
+                                    <span style={{
+                                        fontSize: "0.8rem",
+                                        textTransform: "uppercase",
+                                        fontWeight: "bold",
+                                        color: order.status === 'served' || order.status === 'ready' ? 'var(--success)' : order.status === 'preparing' ? 'var(--primary)' : 'var(--danger)'
                                     }}>
-                                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem" }}>
-                                            <span style={{ fontWeight: "bold" }}>Mesa {order.table_number}</span>
-                                            <span style={{
-                                                fontSize: "0.8rem",
-                                                textTransform: "capitalize",
-                                                color: order.status === 'ready' ? 'var(--success)' : order.status === 'preparing' ? 'var(--primary)' : 'var(--danger)'
-                                            }}>
-                                                {order.status === 'ready' ? 'Ready!' : order.status}
-                                            </span>
-                                        </div>
-                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
-                                            <div style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
-                                                {order.items.length} items - ${order.total.toFixed(2)}
-                                            </div>
-                                            
-                                            {/* BOTONES DE EDICIÓN Y ELIMINACIÓN */}
-                                            {/* BOTONES DE ACCIÓN CONDICIONALES */}
-                                            <div style={{ display: "flex", gap: "0.5rem", justifyContent: "center", alignItems: "center" }}>
-                                                
-                                                {/* SI ESTÁ PENDIENTE: Mostrar Editar y Eliminar */}
-                                                {order.status === 'pending' && (
-                                                    <>
-                                                        <button 
-                                                            onClick={() => openEditModal(order)} 
-                                                            className="btn" 
-                                                            title="Editar Orden"
-                                                            style={{ padding: "0.5rem", background: "rgba(59, 130, 246, 0.2)", color: "#60a5fa" }}
-                                                        >
-                                                            <Edit2 size={18} />
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => setDeletingOrder({ id: order.id, table_number: order.table_number })} 
-                                                            className="btn btn-danger" 
-                                                            title="Eliminar orden"
-                                                            style={{ padding: "0.5rem" }}
-                                                        >
-                                                            <Trash2 size={18} />
-                                                        </button>
-                                                    </>
-                                                )}
-
-                                                {/* SI ESTÁ PREPARANDO: Solo mostrar un texto informativo */}
-                                                {order.status === 'preparing' && (
-                                                    <span style={{ fontSize: "0.85rem", color: "var(--text-muted)", fontStyle: "italic" }}>
-                                                        Cocinando...
-                                                    </span>
-                                                )}
-
-                                                {/* SI ESTÁ LISTO: Mostrar botón para marcar como Servido */}
-                                                {order.status === 'ready' && (
-                                                    <button 
-                                                        onClick={() => handleMarkAsServed(order.id)} 
-                                                        className="btn btn-success" 
-                                                        title="Marcar como servido"
-                                                        style={{ padding: "0.5rem 1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}
-                                                    >
-                                                        <CheckCircle size={18} /> Servido
-                                                    </button>
-                                                )}
-
-                                            </div>
-
-                                        </div>
+                                        {order.status === 'served' || order.status === 'ready' ? '¡¡Listo p/ servir!!' : order.status}
+                                    </span>
+                                </div>
+                                
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                                    <div style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                                        {order.items.length} items - ${order.total.toFixed(2)}
                                     </div>
-                                ))}
+                                    
+                                    <div style={{ display: "flex", gap: "0.5rem", justifyContent: "center", alignItems: "center" }}>
+                                        {order.status === 'pending' && (
+                                            <>
+                                                <button 
+                                                    onClick={() => openEditModal(order)} 
+                                                    className="btn" 
+                                                    title="Editar Orden"
+                                                    style={{ padding: "0.5rem", background: "rgba(59, 130, 246, 0.2)", color: "#60a5fa" }}
+                                                >
+                                                    <Edit2 size={18} />
+                                                </button>
+                                                <button 
+                                                    onClick={() => setDeletingOrder({ id: order.id, table_number: order.table_number })} 
+                                                    className="btn btn-danger" 
+                                                    title="Eliminar orden"
+                                                    style={{ padding: "0.5rem" }}
+                                                >
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            </>
+                                        )}
+
+                                        {order.status === 'preparing' && (
+                                            <span style={{ fontSize: "0.85rem", color: "var(--text-muted)", fontStyle: "italic" }}>
+                                                Cocinando...
+                                            </span>
+                                        )}
+
+                                        {/* SI ESTÁ LISTO: Mostrar botón para marcar como Servido */}
+                                        {order.status === 'served' && (
+                                            <button 
+                                                onClick={() => handleMarkAsServed(order.id)} 
+                                                className="btn btn-success" 
+                                                title="Marcar como servido"
+                                                style={{ padding: "0.5rem 1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}
+                                            >
+                                                <CheckCircle size={18} /> Servido
+                                            </button>
+                                        )}
+
+                                    </div>
+
+                                </div>
                             </div>
-                        )}
+                        ))}
                     </div>
                 </div>
             </div>

@@ -13,8 +13,21 @@ export default function CajeroPage() {
     const { profile, loading: authLoading } = useAuth();
     const router = useRouter();
     const { orders, updateOrderStatus, loading } = useSupabase();
-    const toast = useToast();
     const [confirmingPay, setConfirmingPay] = useState<string | null>(null);
+    const toast = useToast();
+    const getStatusConfig = (status: string) => {
+        switch (status) {
+            case 'ready':
+                return { text: 'Listo p/ Pagar', bg: 'rgba(34, 197, 94, 0.2)', color: '#4ade80' }; // Verde
+            case 'served':
+                return { text: 'Sirviendo', bg: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa' }; // Azul
+            case 'preparing':
+                return { text: 'En Cocina', bg: 'rgba(249, 115, 22, 0.2)', color: '#f97316' }; // Naranja
+            case 'pending':
+            default:
+                return { text: 'En Espera', bg: 'rgba(234, 179, 8, 0.2)', color: '#eab308' }; // Amarillo
+        }
+    };
 
     useEffect(() => {
         if (!authLoading && (!profile || (profile.role !== "cashier" && profile.role !== "admin"))) {
@@ -46,21 +59,6 @@ export default function CajeroPage() {
             } catch (error) {
                 toast("Error al procesar el pago", "error");
             }
-        }
-    };
-
-    // Función auxiliar para obtener el estilo y texto de los badges según el estado
-    const getStatusConfig = (status: string) => {
-        switch (status) {
-            case 'ready':
-                return { text: 'Listo p/ Pagar', bg: 'rgba(34, 197, 94, 0.2)', color: '#4ade80' }; // Verde
-            case 'served':
-                return { text: 'Sirviendo', bg: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa' }; // Azul
-            case 'preparing':
-                return { text: 'En Cocina', bg: 'rgba(249, 115, 22, 0.2)', color: '#f97316' }; // Naranja (fuego/calor)
-            case 'pending':
-            default:
-                return { text: 'En Espera', bg: 'rgba(234, 179, 8, 0.2)', color: '#eab308' }; // Amarillo (reloj/espera)
         }
     };
 

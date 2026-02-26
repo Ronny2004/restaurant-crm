@@ -37,18 +37,24 @@ export default function CocinaPage() {
     // Filter for active kitchen orders (pending or preparing)
     const kitchenOrders = orders.filter(o => o.status === 'pending' || o.status === 'preparing');
 
+    // ... resto del código anterior
+
     const handleStatusChange = async (orderId: string, currentStatus: string) => {
-        setProcessingId(orderId); // preventivo actualizacion de estado en tiempo real
-        const nextStatus = currentStatus === 'pending' ? 'preparing' : 'ready';
+        setProcessingId(orderId);
+        
+        // CAMBIO AQUÍ: Cambiamos 'ready' por 'served'
+        const nextStatus = currentStatus === 'pending' ? 'preparing' : 'served';
 
         try {
             await updateOrderStatus(orderId, nextStatus as Order['status']);
 
             // ACTUALIZACIÓN INSTANTÁNEA (Optimista)
-            // Si el estado es 'ready', desaparecerá del filtro kitchenOrders automáticamente
-            toast(nextStatus === 'preparing' ? "Pedido en preparación" : "¡Pedido listo!", "success");
+            // Si el estado es 'served', desaparecerá del filtro kitchenOrders
+            toast(
+                nextStatus === 'preparing' ? "Pedido en preparación" : "¡Pedido servido!", 
+                "success"
+            );
 
-            // Forzamos un refresco local inmediato por si el Realtime de Supabase tiene lag
             fetchOrders();
         } catch (error) {
             toast("Error al actualizar estado", "error");
