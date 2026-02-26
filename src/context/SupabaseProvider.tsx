@@ -24,7 +24,7 @@ export type OrderItem = {
 export type Order = {
     id: string;
     table_number: string;
-    status: "pending" | "preparing" | "ready" | "paid";
+    status: "pending" | "preparing" | "ready" | "served" | "paid";
     total: number;
     created_at: string;
     items: OrderItem[];
@@ -36,6 +36,8 @@ type SupabaseContextType = {
     fetchProducts: () => Promise<void>;
     fetchOrders: () => Promise<void>;
     createOrder: (table: string, items: { product: Product; quantity: number }[]) => Promise<void>;
+    updateOrder: (orderId: string, updates: { items: { product: Product; quantity: number }[]; total: number }) => Promise<void>;
+    deleteOrder: (id: string) => Promise<void>;
     updateOrderStatus: (orderId: string, status: Order["status"]) => Promise<void>;
     createProduct: (product: Omit<Product, "id">) => Promise<void>;
     updateProduct: (id: string, product: Partial<Omit<Product, "id">>) => Promise<void>;
@@ -184,6 +186,86 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         if (error) throw error;
     };
 
+    const updateOrder = async (orderId: string, updates: { items: any[]; total: number }) => {
+        try {
+            // 1. Actualizamos el total de la orden
+            const { error: orderError } = await supabase
+                .from('orders')
+                .update({ total: updates.total })
+                .eq('id', orderId);
+            
+            if (orderError) throw orderError;
+
+            // 2. Borramos los items antiguos
+            const { error: deleteError } = await supabase
+                .from('order_items')
+                .delete()
+                .eq('order_id', orderId);
+                
+            if (deleteError) throw deleteError;
+
+            // 3. Mapeamos los items nuevos y viejos asegurando que encuentren su ID y precio
+            const itemsToInsert = updates.items.map((item: any) => ({
+                order_id: orderId,
+                product_id: item.product?.id || item.product_id, // <-- Soporta datos locales o de DB
+                quantity: item.quantity,
+                price: item.price || item.product?.price || 0    // <-- Soporta datos locales o de DB
+            }));
+
+            // 4. Insertamos los items procesados
+            if (itemsToInsert.length > 0) {
+                const { error: insertError } = await supabase
+                    .from('order_items')
+                    .insert(itemsToInsert);
+                    
+                if (insertError) throw insertError;
+            }
+
+            await fetchOrders();
+        } catch (error: any) {
+            console.error("Error detallado en updateOrder:", error.message);
+            throw error;
+        }
+    };
+
+    const deleteOrder = async (id: string) => {
+        try {
+            console.log("1. Iniciando borrado para la orden ID:", id);
+
+            // Borramos los items vinculados
+            const { error: itemsError } = await supabase
+                .from("order_items")
+                .delete()
+                .eq("order_id", id);
+
+            if (itemsError) throw itemsError;
+            console.log("2. Items de la orden borrados con éxito");
+
+            // Borramos la orden principal obligando a Supabase a devolver lo que borró (.select)
+            const { data: deletedData, error: deleteError } = await supabase
+                .from("orders")
+                .delete()
+                .eq("id", id)
+                .select();
+
+            if (deleteError) throw deleteError;
+            console.log("3. Respuesta de Supabase al borrar la orden:", deletedData);
+
+            // Si deletedData está vacío, Supabase nos ignoró
+            if (!deletedData || deletedData.length === 0) {
+                throw new Error(`Supabase no eliminó la orden ${id}. Verifica RLS o si el ID es correcto.`);
+            }
+
+            // 4. Si llegamos aquí, sí se borró de la base de datos de verdad
+            setOrders(prev => prev.filter(o => o.id !== id));
+            console.log("4. Estado local actualizado");
+
+        } catch (error: any) {
+            console.error("🚨 Error detallado en deleteOrder:", error.message);
+            throw error;
+        }
+    };
+
     const createProduct = async (product: Omit<Product, "id">) => {
         const { data, error } = await supabase
             .from("products")
@@ -273,6 +355,8 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
             fetchProducts,
             fetchOrders,
             createOrder,
+            updateOrder,
+            deleteOrder,
             updateOrderStatus,
             createProduct,
             updateProduct,
