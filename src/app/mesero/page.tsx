@@ -40,17 +40,13 @@ export default function MeseroPage() {
     }
 
     const addToCart = (product: Product) => {
-        // 1. Validar si el producto tiene stock inicial
         if (product.stock <= 0) {
-            // En lugar de llamar al toast directo, espera un milisegundo
             setTimeout(() => toast(`Sin stock: ${product.name}`, "error"), 0);
             return;
         }
 
         setCart((prev) => {
             const existing = prev.find((p) => p.product.id === product.id);
-
-            // 2. Si ya está en el carrito, validar que la nueva cantidad no supere el stock
             if (existing) {
                 if (existing.quantity >= product.stock) {
                     toast(`Solo hay ${product.stock} unidades disponibles`, "error");
@@ -60,7 +56,6 @@ export default function MeseroPage() {
                     p.product.id === product.id ? { ...p, quantity: p.quantity + 1 } : p
                 );
             }
-
             setTimeout(() => toast(`Agregado: ${product.name}`, "info"), 0);
             return [...prev, { product, quantity: 1 }];
         });
