@@ -39,8 +39,8 @@ type SupabaseContextType = {
     updateOrder: (orderId: string, updates: { items: { product: Product; quantity: number }[]; total: number }) => Promise<void>;
     deleteOrder: (id: string) => Promise<void>;
     updateOrderStatus: (orderId: string, status: Order["status"]) => Promise<void>;
-    createProduct: (product: Omit<Product, "id">) => Promise<void>;
-    updateProduct: (id: string, product: Partial<Omit<Product, "id">>) => Promise<void>;
+    createProduct: (product: Omit<Product, "id">, imageFile?: File) => Promise<void>;
+    updateProduct: (id: string, product: Partial<Omit<Product, "id">>, imageFile?: File) => Promise<void>;
     deleteProduct: (id: string) => Promise<void>;
     getSalesData: (startDate: Date, endDate: Date) => Promise<Order[]>;
     loading: boolean;
@@ -266,34 +266,99 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
-    const createProduct = async (product: Omit<Product, "id">) => {
-        const { data, error } = await supabase
-            .from("products")
-            .insert(product)
-            .select() // Importante para obtener el ID generado
-            .single();
-        if (error) {
-            console.error("Error creando el producto:", error);
+    const createProduct = async (product: Omit<Product, "id">, imageFile?: File) => {
+        try {
+            let finalImageUrl = "";
+
+            // 1. Subida de imagen al Storage si el usuario la seleccionó
+            if (imageFile) {
+                const fileExt = imageFile.name.split('.').pop();
+                // Creamos un nombre único para evitar duplicados
+                const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+                
+                const { error: uploadError } = await supabase.storage
+                    .from('product-images')
+                    .upload(fileName, imageFile);
+
+                if (uploadError) throw uploadError;
+
+                // 2. Obtener la URL pública que generó el bucket
+                const { data: urlData } = supabase.storage
+                    .from('product-images')
+                    .getPublicUrl(fileName);
+                
+                finalImageUrl = urlData.publicUrl;
+            }
+
+            // 3. Insertar el producto con la URL de la imagen en la tabla
+            const { data, error } = await supabase
+                .from("products")
+                .insert({ 
+                    ...product, 
+                    image_url: finalImageUrl 
+                })
+                .select()
+                .single();
+
+            if (error) {
+                console.error("Error creando el producto:", error);
+                throw error;
+            }
+            
+            if (data) {
+                setProducts(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+            }
+        } catch (error: any) {
+            console.error("Error en createProduct:", error.message);
             throw error;
-        }
-        if (data) {
-            setProducts(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
         }
     };
 
-    const updateProduct = async (id: string, product: Partial<Omit<Product, "id">>) => {
-        const { data, error } = await supabase
-            .from("products")
-            .update(product)
-            .eq("id", id)
-            .select() // Importante para obtener el ID generado
-            .single();
-        if (error) {
-            console.error("Error al actualizar el producto:", error);
+    const updateProduct = async (id: string, product: Partial<Omit<Product, "id">>, imageFile?: File) => {
+        try {
+            // 1. Creamos una copia de los datos que vamos a actualizar
+            let updates: any = { ...product };
+
+            // 2. Si el usuario seleccionó una NUEVA imagen, la subimos primero
+            if (imageFile) {
+                const fileExt = imageFile.name.split('.').pop();
+                const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+                
+                const { error: uploadError } = await supabase.storage
+                    .from('product-images')
+                    .upload(fileName, imageFile);
+
+                if (uploadError) throw uploadError;
+
+                // 3. Obtenemos la nueva URL pública
+                const { data: urlData } = supabase.storage
+                    .from('product-images')
+                    .getPublicUrl(fileName);
+                
+                // 4. Inyectamos la nueva URL en el objeto que va a la base de datos
+                updates.image_url = urlData.publicUrl;
+            }
+
+            // 5. Enviamos TODA la actualización (textos + nueva URL si la hay) a Supabase
+            const { data, error } = await supabase
+                .from("products")
+                .update(updates)
+                .eq("id", id)
+                .select() // Importante para obtener el ID generado
+                .single();
+
+            if (error) {
+                console.error("Error al actualizar el producto:", error);
+                throw error;
+            }
+
+            if (data) {
+                // 6. Actualizamos el estado local de React
+                setProducts(prev => prev.map(p => p.id === id ? data : p));
+            }
+        } catch (error: any) {
+            console.error("Error detallado en updateProduct:", error.message);
             throw error;
-        }
-        if (data) {
-            setProducts(prev => prev.map(p => p.id === id ? data : p));
         }
     };
 
