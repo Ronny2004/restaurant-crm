@@ -188,7 +188,44 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
 
     const updateOrder = async (orderId: string, updates: { items: any[]; total: number }) => {
         try {
-            // 1. Actualizamos el total de la orden
+            // --- 1. AUDITORÍA: Recopilar datos ANTES de modificar ---
+            // A. Obtener el número de mesa
+            const { data: orderData } = await supabase
+                .from('orders')
+                .select('table_number')
+                .eq('id', orderId)
+                .single();
+            const tableNumber = orderData?.table_number || 'Desconocida';
+
+            // B. Obtener los nombres y cantidades de los items viejos
+            const { data: oldItemsData } = await supabase
+                .from('order_items')
+                .select('product_id, quantity, products(name)')
+                .eq('order_id', orderId);
+            
+            // C. Generar el mapa comparativo (Diff)
+            const auditMap = new Map<string, { producto: string, ant: number, nue: number }>();
+
+            if (oldItemsData) {
+                oldItemsData.forEach((item: any) => {
+                    auditMap.set(item.product_id, { producto: item.products?.name || 'Producto', ant: item.quantity, nue: 0 });
+                });
+            }
+
+            updates.items.forEach((item: any) => {
+                const pId = item.product?.id || item.product_id;
+                const prodName = item.product?.name || item.product_name || 'Producto';
+                if (auditMap.has(pId)) {
+                    auditMap.get(pId)!.nue = item.quantity;
+                } else {
+                    auditMap.set(pId, { producto: prodName, ant: 0, nue: item.quantity });
+                }
+            });
+
+            const detallesJson = Array.from(auditMap.values()).filter(d => d.ant !== d.nue);
+            // --------------------------------------------------------
+
+            // 2. Actualizamos el total de la orden
             const { error: orderError } = await supabase
                 .from('orders')
                 .update({ total: updates.total })
@@ -196,7 +233,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
             
             if (orderError) throw orderError;
 
-            // 2. Borramos los items antiguos
+            // 3. Borramos los items antiguos
             const { error: deleteError } = await supabase
                 .from('order_items')
                 .delete()
@@ -204,15 +241,15 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
                 
             if (deleteError) throw deleteError;
 
-            // 3. Mapeamos los items nuevos y viejos asegurando que encuentren su ID y precio
+            // 4. Mapeamos los items nuevos
             const itemsToInsert = updates.items.map((item: any) => ({
                 order_id: orderId,
-                product_id: item.product?.id || item.product_id, // <-- Soporta datos locales o de DB
+                product_id: item.product?.id || item.product_id, // Soporta datos locales o de DB
                 quantity: item.quantity,
-                price: item.price || item.product?.price || 0    // <-- Soporta datos locales o de DB
+                price: item.price || item.product?.price || 0    // Soporta datos locales o de DB
             }));
 
-            // 4. Insertamos los items procesados
+            // 5. Insertamos los items procesados
             if (itemsToInsert.length > 0) {
                 const { error: insertError } = await supabase
                     .from('order_items')
@@ -220,6 +257,16 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
                     
                 if (insertError) throw insertError;
             }
+
+            // --- 6. AUDITORÍA: Guardar el registro en la nueva tabla ---
+            if (detallesJson.length > 0) {
+                await supabase.rpc('auditar_edicion_pedido', {
+                    p_pedido_id: orderId,
+                    p_mesa: tableNumber,
+                    p_detalles: detallesJson // Enviamos el JSON limpio a la tabla hija
+                });
+            }
+            // -----------------------------------------------------------
 
             await fetchOrders();
         } catch (error: any) {
