@@ -85,7 +85,7 @@ export default function Home() {
         Restaurante <span style={{ color: "var(--primary)" }}>CRM</span>
       </h1>
       <p style={{ color: "var(--text-muted)", marginBottom: "1rem", textAlign: "center", maxWidth: "600px" }}>
-        Bienvenido, <strong style={{ color: "var(--primary)" }}>{profile.full_name || profile.email}</strong>
+        Bienvenido, <strong style={{ color: "var(--primary)" }}>{profile.username || profile.full_name || profile.email}</strong>
       </p>
       <p style={{ color: "var(--text-muted)", marginBottom: "3rem", textAlign: "center", maxWidth: "600px" }}>
         Selecciona el panel al que deseas acceder.

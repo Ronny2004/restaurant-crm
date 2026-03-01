@@ -13,8 +13,21 @@ export default function CajeroPage() {
     const { profile, loading: authLoading } = useAuth();
     const router = useRouter();
     const { orders, updateOrderStatus, loading } = useSupabase();
-    const toast = useToast();
     const [confirmingPay, setConfirmingPay] = useState<string | null>(null);
+    const toast = useToast();
+    const getStatusConfig = (status: string) => {
+        switch (status) {
+            case 'ready':
+                return { text: 'Listo p/ Pagar', bg: 'rgba(34, 197, 94, 0.2)', color: '#4ade80' }; // Verde
+            case 'served':
+                return { text: 'Sirviendo', bg: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa' }; // Azul
+            case 'preparing':
+                return { text: 'En Cocina', bg: 'rgba(249, 115, 22, 0.2)', color: '#f97316' }; // Naranja
+            case 'pending':
+            default:
+                return { text: 'En Espera', bg: 'rgba(234, 179, 8, 0.2)', color: '#eab308' }; // Amarillo
+        }
+    };
 
     useEffect(() => {
         if (!authLoading && (!profile || (profile.role !== "cashier" && profile.role !== "admin"))) {
@@ -30,7 +43,10 @@ export default function CajeroPage() {
         );
     }
 
-    const unpaidOrders = orders.filter(o => o.status !== 'paid');
+    // Filtramos las no pagadas y las ordenamos por fecha (las más recientes arriba)
+    const unpaidOrders = orders
+        .filter(o => o.status !== 'paid')
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     if (loading) return <div className="container">Cargando...</div>;
 
@@ -57,11 +73,11 @@ export default function CajeroPage() {
                 <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "600px" }}>
                     <thead>
                         <tr style={{ background: "rgba(255,255,255,0.05)", borderBottom: "1px solid var(--border)" }}>
-                            <th style={{ padding: "1rem", textAlign: "left" }}>Mesa</th>
-                            <th style={{ padding: "1rem", textAlign: "left" }}>Items</th>
-                            <th style={{ padding: "1rem", textAlign: "left" }}>Estado</th>
-                            <th style={{ padding: "1rem", textAlign: "right" }}>Total</th>
-                            <th style={{ padding: "1rem", textAlign: "center" }}>Acción</th>
+                            <th style={{ padding: "1rem", textAlign: "left", color: "white" }}>Mesa</th>
+                            <th style={{ padding: "1rem", textAlign: "left", color: "white" }}>Items</th>
+                            <th style={{ padding: "1rem", textAlign: "left", color: "white" }}>Estado</th>
+                            <th style={{ padding: "1rem", textAlign: "left", color: "white" }}>Total</th>
+                            <th style={{ padding: "1rem", textAlign: "center", color: "white" }}>Acción</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -73,22 +89,20 @@ export default function CajeroPage() {
                             unpaidOrders.map((order) => {
                                 // VALIDACIÓN CLAVE: Solo habilitar si está 'ready'
                                 const canPay = order.status === 'ready';
+                                const statusConfig = getStatusConfig(order.status);
 
                                 return (
-                                    <tr key={order.id} style={{
-                                        borderBottom: "1px solid var(--border)",
-                                        opacity: canPay ? 1 : 0.7 // Opacidad menor para lo que no se puede cobrar aún
-                                    }}>
+                                    <tr key={order.id} style={{ borderBottom: "1px solid var(--border)" }}>
                                         <td style={{ padding: "1rem" }}>
-                                            <span style={{ fontWeight: "bold", fontSize: "1.1rem" }}>#{order.table_number}</span>
-                                            <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                                                {new Date(order.created_at).toLocaleTimeString()}
+                                            <div style={{ fontWeight: "bold", fontSize: "1.1rem", color: "white" }}>#{order.table_number}</div>
+                                            <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>
+                                                {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                                             </div>
                                         </td>
                                         <td style={{ padding: "1rem" }}>
-                                            {order.items.length} items
-                                            <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", maxWidth: "200px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                                {order.items.map(i => i.product_name).join(", ")}
+                                            <div style={{ color: "white" }}>{order.items.length} items</div>
+                                            <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginTop: "0.25rem", maxWidth: "200px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                                {order.items.map((i: any) => i.product?.name || i.product_name).join(", ")}
                                             </div>
                                         </td>
                                         <td style={{ padding: "1rem" }}>
@@ -96,28 +110,35 @@ export default function CajeroPage() {
                                                 padding: "0.25rem 0.75rem",
                                                 borderRadius: "99px",
                                                 fontSize: "0.85rem",
-                                                background: order.status === 'ready' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(255, 255, 255, 0.1)',
-                                                color: order.status === 'ready' ? '#4ade80' : 'var(--text-muted)'
+                                                background: statusConfig.bg,
+                                                color: statusConfig.color,
+                                                fontWeight: "500"
                                             }}>
-                                                {order.status === 'ready' ? 'Listo p/ Servir' :
-                                                    order.status === 'preparing' ? 'En Cocina' : 'En Espera'}
+                                                {statusConfig.text}
                                             </span>
                                         </td>
-                                        <td style={{ padding: "1rem", textAlign: "right", fontWeight: "bold", fontSize: "1.1rem" }}>
+                                        <td style={{ padding: "1rem", fontWeight: "bold", fontSize: "1.1rem", color: "white" }}>
                                             ${order.total.toFixed(2)}
                                         </td>
                                         <td style={{ padding: "1rem", textAlign: "center" }}>
                                             <button
                                                 onClick={() => setConfirmingPay(order.id)}
-                                                className={`btn ${canPay ? 'btn-primary' : 'btn-secondary'}`}
                                                 disabled={!canPay} // Bloquea el botón si no está listo
                                                 style={{
                                                     padding: "0.5rem 1rem",
                                                     fontSize: "0.9rem",
+                                                    fontWeight: "600",
                                                     cursor: canPay ? 'pointer' : 'not-allowed',
                                                     display: 'inline-flex',
                                                     alignItems: 'center',
-                                                    gap: '0.5rem'
+                                                    gap: '0.5rem',
+                                                    justifyContent: 'center',
+                                                    background: canPay ? 'var(--primary)' : 'rgba(255, 255, 255, 0.05)',
+                                                    color: canPay ? 'var(--background)' : 'var(--text-muted)',
+                                                    border: canPay ? 'none' : '1px solid var(--border)',
+                                                    borderRadius: "8px",
+                                                    minWidth: "120px",
+                                                    transition: "all 0.2s ease"
                                                 }}
                                             >
                                                 {canPay ? <DollarSign size={16} /> : <Lock size={16} />}

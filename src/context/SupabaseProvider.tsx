@@ -24,7 +24,7 @@ export type OrderItem = {
 export type Order = {
     id: string;
     table_number: string;
-    status: "pending" | "preparing" | "ready" | "paid";
+    status: "pending" | "preparing" | "ready" | "served" | "paid";
     total: number;
     created_at: string;
     items: OrderItem[];
@@ -36,9 +36,11 @@ type SupabaseContextType = {
     fetchProducts: () => Promise<void>;
     fetchOrders: () => Promise<void>;
     createOrder: (table: string, items: { product: Product; quantity: number }[]) => Promise<void>;
+    updateOrder: (orderId: string, updates: { items: { product: Product; quantity: number }[]; total: number }) => Promise<void>;
+    deleteOrder: (id: string) => Promise<void>;
     updateOrderStatus: (orderId: string, status: Order["status"]) => Promise<void>;
-    createProduct: (product: Omit<Product, "id">) => Promise<void>;
-    updateProduct: (id: string, product: Partial<Omit<Product, "id">>) => Promise<void>;
+    createProduct: (product: Omit<Product, "id">, imageFile?: File) => Promise<void>;
+    updateProduct: (id: string, product: Partial<Omit<Product, "id">>, imageFile?: File) => Promise<void>;
     deleteProduct: (id: string) => Promise<void>;
     getSalesData: (startDate: Date, endDate: Date) => Promise<Order[]>;
     loading: boolean;
@@ -185,34 +187,226 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         if (error) throw error;
     };
 
-    const createProduct = async (product: Omit<Product, "id">) => {
-        const { data, error } = await supabase
-            .from("products")
-            .insert(product)
-            .select() // Importante para obtener el ID generado
-            .single();
-        if (error) {
-            console.error("Error creando el producto:", error);
+    const updateOrder = async (orderId: string, updates: { items: any[]; total: number }) => {
+        try {
+            // --- 1. AUDITORÍA: Recopilar datos ANTES de modificar ---
+            // A. Obtener el número de mesa
+            const { data: orderData } = await supabase
+                .from('orders')
+                .select('table_number')
+                .eq('id', orderId)
+                .single();
+            const tableNumber = orderData?.table_number || 'Desconocida';
+
+            // B. Obtener los nombres y cantidades de los items viejos
+            const { data: oldItemsData } = await supabase
+                .from('order_items')
+                .select('product_id, quantity, products(name)')
+                .eq('order_id', orderId);
+            
+            // C. Generar el mapa comparativo (Diff)
+            const auditMap = new Map<string, { producto: string, ant: number, nue: number }>();
+
+            if (oldItemsData) {
+                oldItemsData.forEach((item: any) => {
+                    auditMap.set(item.product_id, { producto: item.products?.name || 'Producto', ant: item.quantity, nue: 0 });
+                });
+            }
+
+            updates.items.forEach((item: any) => {
+                const pId = item.product?.id || item.product_id;
+                const prodName = item.product?.name || item.product_name || 'Producto';
+                if (auditMap.has(pId)) {
+                    auditMap.get(pId)!.nue = item.quantity;
+                } else {
+                    auditMap.set(pId, { producto: prodName, ant: 0, nue: item.quantity });
+                }
+            });
+
+            const detallesJson = Array.from(auditMap.values()).filter(d => d.ant !== d.nue);
+            // --------------------------------------------------------
+
+            // 2. Actualizamos el total de la orden
+            const { error: orderError } = await supabase
+                .from('orders')
+                .update({ total: updates.total })
+                .eq('id', orderId);
+            
+            if (orderError) throw orderError;
+
+            // 3. Borramos los items antiguos
+            const { error: deleteError } = await supabase
+                .from('order_items')
+                .delete()
+                .eq('order_id', orderId);
+                
+            if (deleteError) throw deleteError;
+
+            // 4. Mapeamos los items nuevos
+            const itemsToInsert = updates.items.map((item: any) => ({
+                order_id: orderId,
+                product_id: item.product?.id || item.product_id, // Soporta datos locales o de DB
+                quantity: item.quantity,
+                price: item.price || item.product?.price || 0    // Soporta datos locales o de DB
+            }));
+
+            // 5. Insertamos los items procesados
+            if (itemsToInsert.length > 0) {
+                const { error: insertError } = await supabase
+                    .from('order_items')
+                    .insert(itemsToInsert);
+                    
+                if (insertError) throw insertError;
+            }
+
+            // --- 6. AUDITORÍA: Guardar el registro en la nueva tabla ---
+            if (detallesJson.length > 0) {
+                await supabase.rpc('auditar_edicion_pedido', {
+                    p_pedido_id: orderId,
+                    p_mesa: tableNumber,
+                    p_detalles: detallesJson // Enviamos el JSON limpio a la tabla hija
+                });
+            }
+            // -----------------------------------------------------------
+
+            await fetchOrders();
+        } catch (error: any) {
+            console.error("Error detallado en updateOrder:", error.message);
             throw error;
-        }
-        if (data) {
-            setProducts(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
         }
     };
 
-    const updateProduct = async (id: string, product: Partial<Omit<Product, "id">>) => {
-        const { data, error } = await supabase
-            .from("products")
-            .update(product)
-            .eq("id", id)
-            .select() // Importante para obtener el ID generado
-            .single();
-        if (error) {
-            console.error("Error al actualizar el producto:", error);
+    const deleteOrder = async (id: string) => {
+        try {
+            console.log("1. Iniciando borrado para la orden ID:", id);
+
+            // Borramos los items vinculados
+            const { error: itemsError } = await supabase
+                .from("order_items")
+                .delete()
+                .eq("order_id", id);
+
+            if (itemsError) throw itemsError;
+            console.log("2. Items de la orden borrados con éxito");
+
+            // Borramos la orden principal obligando a Supabase a devolver lo que borró (.select)
+            const { data: deletedData, error: deleteError } = await supabase
+                .from("orders")
+                .delete()
+                .eq("id", id)
+                .select();
+
+            if (deleteError) throw deleteError;
+            console.log("3. Respuesta de Supabase al borrar la orden:", deletedData);
+
+            // Si deletedData está vacío, Supabase nos ignoró
+            if (!deletedData || deletedData.length === 0) {
+                throw new Error(`Supabase no eliminó la orden ${id}. Verifica RLS o si el ID es correcto.`);
+            }
+
+            // 4. Si llegamos aquí, sí se borró de la base de datos de verdad
+            setOrders(prev => prev.filter(o => o.id !== id));
+            console.log("4. Estado local actualizado");
+
+        } catch (error: any) {
+            console.error("🚨 Error detallado en deleteOrder:", error.message);
             throw error;
         }
-        if (data) {
-            setProducts(prev => prev.map(p => p.id === id ? data : p));
+    };
+
+    const createProduct = async (product: Omit<Product, "id">, imageFile?: File) => {
+        try {
+            let finalImageUrl = "";
+
+            // 1. Subida de imagen al Storage si el usuario la seleccionó
+            if (imageFile) {
+                const fileExt = imageFile.name.split('.').pop();
+                // Creamos un nombre único para evitar duplicados
+                const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+                
+                const { error: uploadError } = await supabase.storage
+                    .from('product-images')
+                    .upload(fileName, imageFile);
+
+                if (uploadError) throw uploadError;
+
+                // 2. Obtener la URL pública que generó el bucket
+                const { data: urlData } = supabase.storage
+                    .from('product-images')
+                    .getPublicUrl(fileName);
+                
+                finalImageUrl = urlData.publicUrl;
+            }
+
+            // 3. Insertar el producto con la URL de la imagen en la tabla
+            const { data, error } = await supabase
+                .from("products")
+                .insert({ 
+                    ...product, 
+                    image_url: finalImageUrl 
+                })
+                .select()
+                .single();
+
+            if (error) {
+                console.error("Error creando el producto:", error);
+                throw error;
+            }
+            
+            if (data) {
+                setProducts(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+            }
+        } catch (error: any) {
+            console.error("Error en createProduct:", error.message);
+            throw error;
+        }
+    };
+
+    const updateProduct = async (id: string, product: Partial<Omit<Product, "id">>, imageFile?: File) => {
+        try {
+            // 1. Creamos una copia de los datos que vamos a actualizar
+            let updates: any = { ...product };
+
+            // 2. Si el usuario seleccionó una NUEVA imagen, la subimos primero
+            if (imageFile) {
+                const fileExt = imageFile.name.split('.').pop();
+                const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+                
+                const { error: uploadError } = await supabase.storage
+                    .from('product-images')
+                    .upload(fileName, imageFile);
+
+                if (uploadError) throw uploadError;
+
+                // 3. Obtenemos la nueva URL pública
+                const { data: urlData } = supabase.storage
+                    .from('product-images')
+                    .getPublicUrl(fileName);
+                
+                // 4. Inyectamos la nueva URL en el objeto que va a la base de datos
+                updates.image_url = urlData.publicUrl;
+            }
+
+            // 5. Enviamos TODA la actualización (textos + nueva URL si la hay) a Supabase
+            const { data, error } = await supabase
+                .from("products")
+                .update(updates)
+                .eq("id", id)
+                .select() // Importante para obtener el ID generado
+                .single();
+
+            if (error) {
+                console.error("Error al actualizar el producto:", error);
+                throw error;
+            }
+
+            if (data) {
+                // 6. Actualizamos el estado local de React
+                setProducts(prev => prev.map(p => p.id === id ? data : p));
+            }
+        } catch (error: any) {
+            console.error("Error detallado en updateProduct:", error.message);
+            throw error;
         }
     };
 
@@ -274,6 +468,8 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
             fetchProducts,
             fetchOrders,
             createOrder,
+            updateOrder,
+            deleteOrder,
             updateOrderStatus,
             createProduct,
             updateProduct,

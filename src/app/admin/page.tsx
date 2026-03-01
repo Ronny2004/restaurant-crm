@@ -1,28 +1,41 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useSupabase, Product } from "@/context/SupabaseProvider";
 import Link from "next/link";
-import { ChevronLeft, TrendingUp, Package, Users, DollarSign, LogOut, Loader2, Plus, Edit2, Trash2, X, Check } from "lucide-react";
+import { 
+    ChevronLeft, TrendingUp, Package, Users, 
+    DollarSign, LogOut, Loader2, Plus, 
+    Edit2, Trash2, X, Check, ImageIcon 
+} from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 import { Modal } from "@/components/ui/Modal";
-import { RoleNavigation } from "@/components/RoleNavigation";
 
 export default function AdminPage() {
     const { profile, loading: authLoading, signOut } = useAuth();
     const router = useRouter();
-    const { products, orders, loading, fetchProducts, createProduct, updateProduct, deleteProduct } = useSupabase();
+    const { 
+        products, orders, loading, 
+        fetchProducts, 
+        createProduct, 
+        updateProduct, 
+        deleteProduct 
+    } = useSupabase();
     const toast = useToast();
 
+    // Estados de UI
     const [isAddingProduct, setIsAddingProduct] = useState(false);
     const [editingProductId, setEditingProductId] = useState<string | null>(null);
     const [deletingProduct, setDeletingProduct] = useState<{ id: string; name: string } | null>(null);
+    
+    // Estados de Formulario
     const [formData, setFormData] = useState({ name: "", price: 0, category: "", stock: 0 });
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
-
-    // Protección de ruta
+    // Protección de ruta y carga inicial
     useEffect(() => {
         if (!authLoading && (!profile || profile.role !== "admin")) {
             router.push("/login");
@@ -30,7 +43,7 @@ export default function AdminPage() {
         if (products.length === 0) {
             fetchProducts();
         }
-    }, [authLoading, profile, router]);
+    }, [authLoading, profile, router, products.length, fetchProducts]);
 
     if (authLoading || !profile || profile.role !== "admin") {
         return (
@@ -40,16 +53,7 @@ export default function AdminPage() {
         );
     }
 
-    if (loading && products.length === 0) {
-        return (
-            <div className="container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '5rem' }}>
-                <Loader2 size={40} className="animate-spin" style={{ color: 'var(--primary)' }} />
-                <p style={{ marginTop: '1rem' }}>Sincronizando Inventario...</p>
-            </div>
-        );
-    }
-
-    // Cálculos de Stats
+    // Cálculos de Estadísticas
     const totalSales = orders
         .filter(o => o.status === 'paid')
         .reduce((sum, o) => sum + o.total, 0);
@@ -65,11 +69,13 @@ export default function AdminPage() {
     });
     const bestSeller = Object.entries(itemCounts).sort((a, b) => b[1] - a[1])[0] || ["N/A", 0];
 
+    // Handlers de Acciones
     const handleAddProduct = async () => {
         try {
-            await createProduct(formData);
+            await createProduct(formData, selectedFile || undefined);
             setIsAddingProduct(false);
             setFormData({ name: "", price: 0, category: "", stock: 0 });
+            setSelectedFile(null);
             toast("Producto creado exitosamente", "success");
         } catch (error) {
             toast("Error al crear producto", "error");
@@ -78,9 +84,10 @@ export default function AdminPage() {
 
     const handleUpdateProduct = async (id: string) => {
         try {
-            await updateProduct(id, formData);
+            await updateProduct(id, formData, selectedFile || undefined);
             setEditingProductId(null);
             setFormData({ name: "", price: 0, category: "", stock: 0 });
+            setSelectedFile(null);
             toast("Producto actualizado", "success");
         } catch (error) {
             toast("Error al actualizar producto", "error");
@@ -124,6 +131,7 @@ export default function AdminPage() {
         setEditingProductId(null);
         setIsAddingProduct(false);
         setFormData({ name: "", price: 0, category: "", stock: 0 });
+        setSelectedFile(null);
     };
 
     return (
@@ -140,7 +148,7 @@ export default function AdminPage() {
                 </button>
             </header>
 
-            {/* Stats Grid */}
+            {/* Panel de Estadísticas */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "1.5rem", marginBottom: "3rem" }}>
 
                 {/* Enlace a Ventas Totales */}
@@ -183,7 +191,7 @@ export default function AdminPage() {
                 </div>
             </div>
 
-            {/* Inventory Table */}
+            {/* Tabla de Inventario */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
                 <h2 style={{ display: "flex", alignItems: "center", gap: "0.5rem", margin: 0 }}>
                     <Package /> Inventario
@@ -198,9 +206,10 @@ export default function AdminPage() {
             </div>
 
             <div className="glass-panel" style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "700px" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "800px" }}>
                     <thead>
                         <tr style={{ background: "rgba(255,255,255,0.05)", borderBottom: "1px solid var(--border)" }}>
+                            <th style={{ padding: "1rem", textAlign: "left" }}>Imagen</th>
                             <th style={{ padding: "1rem", textAlign: "left" }}>Producto</th>
                             <th style={{ padding: "1rem", textAlign: "left" }}>Categoría</th>
                             <th style={{ padding: "1rem", textAlign: "right" }}>Precio</th>
@@ -212,19 +221,42 @@ export default function AdminPage() {
                         {isAddingProduct && (
                             <tr style={{ borderBottom: "1px solid var(--border)", background: "rgba(245, 158, 11, 0.1)" }}>
                                 <td style={{ padding: "1rem" }}>
+                                    <div style={{ position: 'relative', width: '40px', height: '40px' }}>
+                                        <input 
+                                            type="file" 
+                                            ref={fileInputRef}
+                                            onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                                            style={{ display: 'none' }}
+                                            accept="image/*"
+                                        />
+                                        <button 
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="btn"
+                                            style={{ padding: '4px', background: selectedFile ? 'var(--success)' : 'var(--surface)' }}
+                                        >
+                                            <ImageIcon size={20} />
+                                        </button>
+                                    </div>
+                                </td>
+                                <td style={{ padding: "1rem" }}>
                                     <input
                                         type="text"
                                         value={formData.name}
                                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                         placeholder="Nombre del producto"
-
                                     />
                                 </td>
                                 <td style={{ padding: "1rem" }}>
                                     <select
                                         value={formData.category}
                                         onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                                        style={{ width: "100%", padding: "0.4rem", borderRadius: "4px", background: "var(--surface)", color: "white" }}
+                                        style={{ 
+                                            width: "100%", 
+                                            padding: "0.4rem", 
+                                            borderRadius: "4px", 
+                                            background: "var(--surface)", 
+                                            color: "white" 
+                                        }}
                                     >
                                         <option value="">Seleccionar...</option>
                                         <option value="platos">Platos</option>
@@ -271,6 +303,12 @@ export default function AdminPage() {
                             <tr key={product.id} style={{ borderBottom: "1px solid var(--border)" }}>
                                 {editingProductId === product.id ? (
                                     <>
+                                        <td style={{ padding: "1rem" }}>
+                                            <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} />
+                                            <button onClick={() => fileInputRef.current?.click()} className="btn" style={{ color: selectedFile ? 'var(--success)' : 'inherit' }}>
+                                                <ImageIcon size={20} />
+                                            </button>
+                                        </td>
                                         <td style={{ padding: "1rem" }}>
                                             <input
                                                 type="text"
@@ -319,6 +357,15 @@ export default function AdminPage() {
                                     </>
                                 ) : (
                                     <>
+                                        <td style={{ padding: "1rem" }}>
+                                            {product.image_url ? (
+                                                <img src={product.image_url} alt={product.name} style={{ width: '45px', height: '45px', borderRadius: '8px', objectFit: 'cover' }} />
+                                            ) : (
+                                                <div style={{ width: '45px', height: '45px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                    <ImageIcon size={20} opacity={0.2} />
+                                                </div>
+                                            )}
+                                        </td>
                                         <td style={{ padding: "1rem", fontWeight: "500" }}>{product.name}</td>
                                         <td style={{ padding: "1rem", color: "var(--text-muted)" }}>{product.category}</td>
                                         <td style={{ padding: "1rem", textAlign: "right" }}>${product.price.toFixed(2)}</td>
@@ -335,11 +382,28 @@ export default function AdminPage() {
                                         </td>
                                         <td style={{ padding: "1rem", textAlign: "center" }}>
                                             <div style={{ display: "flex", gap: "0.5rem", justifyContent: "center" }}>
-                                                <button onClick={() => startEdit(product)} className="btn" style={{ padding: "0.5rem", background: "rgba(59, 130, 246, 0.2)", color: "#60a5fa" }}>
-                                                    <Edit2 size={18} />
+                                                <button 
+                                                    onClick={() => startEdit(product)} 
+                                                    className="btn" 
+                                                    style={{ 
+                                                        padding: "0.5rem", 
+                                                        background: "rgba(59, 130, 246, 0.2)", 
+                                                        color: "#60a5fa" 
+                                                    }}>
+                                                    <Edit2 size={18} 
+                                                />
                                                 </button>
-                                                <button onClick={() => setDeletingProduct({ id: product.id, name: product.name })} className="btn btn-danger" style={{ padding: "0.5rem" }}>
-                                                    <Trash2 size={18} />
+                                                <button 
+                                                    onClick={() => setDeletingProduct({ 
+                                                        id: product.id, 
+                                                        name: product.name 
+                                                    })} 
+                                                    className="btn btn-danger" 
+                                                    style={{ 
+                                                        padding: "0.5rem" 
+                                                    }}>
+                                                    <Trash2 size={18} 
+                                                />
                                                 </button>
                                             </div>
                                         </td>
@@ -351,12 +415,8 @@ export default function AdminPage() {
                 </table>
             </div>
 
-            {/* Delete Confirmation Modal */}
-            <Modal
-                isOpen={!!deletingProduct}
-                onClose={() => setDeletingProduct(null)}
-                title="Confirmar Eliminación"
-            >
+            {/* Modal de Confirmación para Borrar */}
+            <Modal isOpen={!!deletingProduct} onClose={() => setDeletingProduct(null)} title="Confirmar Eliminación">
                 <div style={{ textAlign: "center" }}>
                     <div style={{
                         background: "rgba(239, 68, 68, 0.1)",
@@ -371,7 +431,13 @@ export default function AdminPage() {
                     }}>
                         <Trash2 size={32} />
                     </div>
-                    <p style={{ marginBottom: "2rem", color: "var(--text-muted)", fontSize: "1.1rem" }}>
+                    <p 
+                        style={{ 
+                            marginBottom: "2rem", 
+                            color: "var(--text-muted)", 
+                            fontSize: "1.1rem" 
+                        }}
+                    >
                         ¿Estás seguro de eliminar <strong style={{ color: "white" }}>"{deletingProduct?.name}"</strong>?
                         <br />
                         <span style={{ fontSize: "0.9rem" }}>Esta acción no se puede deshacer.</span>

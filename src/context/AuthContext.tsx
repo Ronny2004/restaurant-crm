@@ -12,6 +12,7 @@ export type UserProfile = {
     email: string;
     role: UserRole;
     full_name?: string;
+    username?: string;
 };
 
 type AuthContextType = {
