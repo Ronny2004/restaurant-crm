@@ -66,7 +66,7 @@ export default function CocinaPage() {
     return (
         <div className="container">
             <header className="responsive-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem", flexWrap: "wrap", gap: "1rem" }}>
-                <h1>Cocina - Comandas Activas "Hola mundos"</h1>
+                <h1>Cocina - Comandas Activas</h1>
                 <RoleNavigation />
             </header>
 
