@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useSupabase, Product } from "@/context/SupabaseProvider";
-import { Plus, Minus, ShoppingCart, LogOut, Loader2, Send, Edit2, Trash2, X, CheckCircle } from "lucide-react";
+import { Plus, Minus, ShoppingCart, LogOut, Loader2, Edit2, Trash2, Send, X, CheckCircle } from "lucide-react";
 import { RoleNavigation } from "@/components/RoleNavigation";
 import { useToast } from "@/context/ToastContext";
 import { Modal } from "@/components/ui/Modal";
@@ -12,6 +12,7 @@ import { Modal } from "@/components/ui/Modal";
 export default function MeseroPage() {
     const { profile, loading: authLoading } = useAuth();
     const router = useRouter();
+    // const { products, createOrder, loading: supabaseLoading, orders, fetchProducts, updateOrder, deleteOrder, markOrderAsPaid, fetchOrders } = useSupabase();    
     const { products, createOrder, loading: supabaseLoading, orders, fetchProducts, updateOrder, deleteOrder, updateOrderStatus, fetchOrders } = useSupabase();    
     const toast = useToast();
     
@@ -212,9 +213,9 @@ export default function MeseroPage() {
     };
 
     const total = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
-    // Ocultamos tanto los 'paid' (pagados) como los 'served' (entregados en mesa)
+    
+    // CAMBIO CLAVE: Solo filtramos los que ya están servidos, para que el mesero vea los que están pagados pero aún en cocina/pendientes
     const activeOrders = orders.filter(o => 
-        o.status !== 'paid' && 
         o.status !== 'ready'
     ).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     // Total dinámico para el modal de edición (Soporta data de Supabase y del Carrito temporal)
@@ -329,7 +330,11 @@ export default function MeseroPage() {
                                 padding: "1rem",
                                 background: "rgba(255,255,255,0.03)",
                                 borderRadius: "8px",
-                                borderLeft: `4px solid ${order.status === 'served' || order.status === 'ready' ? 'var(--success)' : order.status === 'preparing' ? 'var(--primary)' : 'var(--danger)'}`
+                                borderLeft: `4px solid ${
+                                    (order.status === 'served') || 
+                                    (order.status === 'ready') ? 'var(--success)' : 
+                                    (order.status === 'preparing') ? 'var(--primary)' : 
+                                    'var(--danger)'}`
                             }}>
                                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem" }}>
                                     <span style={{ fontWeight: "bold" }}>Mesa {order.table_number}</span>
@@ -339,7 +344,11 @@ export default function MeseroPage() {
                                         fontWeight: "bold",
                                         color: order.status === 'served' || order.status === 'ready' ? 'var(--success)' : order.status === 'preparing' ? 'var(--primary)' : 'var(--danger)'
                                     }}>
-                                        {order.status === 'served' || order.status === 'ready' ? '¡¡Listo p/ servir!!' : order.status}
+                                        {/* LÓGICA DE ESTADO DINÁMICA: Muestra cocina + pago */}
+                                        {order.status === 'served' ? '¡¡Listo p/ servir!!' : 
+                                         order.status === 'preparing' ? 'Preparando' : 
+                                         order.status === 'pending' ? 'Pendiente' : order.status} 
+                                        {order.is_paid ? ' - Pagado 💵' : ''}
                                     </span>
                                 </div>
                                 
@@ -354,16 +363,30 @@ export default function MeseroPage() {
                                                 <button 
                                                     onClick={() => openEditModal(order)} 
                                                     className="btn" 
-                                                    title="Editar Orden"
-                                                    style={{ padding: "0.5rem", background: "rgba(59, 130, 246, 0.2)", color: "#60a5fa" }}
+                                                    title={order.is_paid ? "Bloqueado: El pedido ya fue pagado" : "Editar Orden"}
+                                                    disabled={order.is_paid}
+                                                    style={{ 
+                                                        padding: "0.5rem", 
+                                                        background: order.is_paid ? "rgba(255,255,255,0.05)" : "rgba(59, 130, 246, 0.2)", 
+                                                        color: order.is_paid ? "var(--text-muted)" : "#60a5fa",
+                                                        cursor: order.is_paid ? "not-allowed" : "pointer",
+                                                        opacity: order.is_paid ? 0.5 : 1
+                                                    }}
                                                 >
                                                     <Edit2 size={18} />
                                                 </button>
                                                 <button 
                                                     onClick={() => setDeletingOrder({ id: order.id, table_number: order.table_number })} 
-                                                    className="btn btn-danger" 
-                                                    title="Eliminar orden"
-                                                    style={{ padding: "0.5rem" }}
+                                                    className={`btn ${order.is_paid ? '' : 'btn-danger'}`} 
+                                                    title={order.is_paid ? "Bloqueado: El pedido ya fue pagado" : "Eliminar orden"}
+                                                    disabled={order.is_paid}
+                                                    style={{ 
+                                                        padding: "0.5rem",
+                                                        background: order.is_paid ? "rgba(255,255,255,0.05)" : "",
+                                                        color: order.is_paid ? "var(--text-muted)" : "",
+                                                        cursor: order.is_paid ? "not-allowed" : "pointer",
+                                                        opacity: order.is_paid ? 0.5 : 1
+                                                    }}
                                                 >
                                                     <Trash2 size={18} />
                                                 </button>
@@ -376,7 +399,6 @@ export default function MeseroPage() {
                                             </span>
                                         )}
 
-                                        {/* SI ESTÁ LISTO: Mostrar botón para marcar como Servido */}
                                         {order.status === 'served' && (
                                             <button 
                                                 onClick={() => handleMarkAsServed(order.id)} 
@@ -384,7 +406,7 @@ export default function MeseroPage() {
                                                 title="Marcar como servido"
                                                 style={{ padding: "0.5rem 1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}
                                             >
-                                                <CheckCircle size={18} /> Servido
+                                                <CheckCircle size={18} /> Servir
                                             </button>
                                         )}
 

@@ -24,7 +24,8 @@ export type OrderItem = {
 export type Order = {
     id: string;
     table_number: string;
-    status: "pending" | "preparing" | "ready" | "served" | "paid";
+    status: "pending" | "preparing" | "ready" | "served";
+    is_paid: boolean;
     total: number;
     created_at: string;
     items: OrderItem[];
@@ -39,6 +40,7 @@ type SupabaseContextType = {
     updateOrder: (orderId: string, updates: { items: { product: Product; quantity: number }[]; total: number }) => Promise<void>;
     deleteOrder: (id: string) => Promise<void>;
     updateOrderStatus: (orderId: string, status: Order["status"]) => Promise<void>;
+    markOrderAsPaid: (orderId: string) => Promise<void>;
     createProduct: (product: Omit<Product, "id">, imageFile?: File) => Promise<void>;
     updateProduct: (id: string, product: Partial<Omit<Product, "id">>, imageFile?: File) => Promise<void>;
     deleteProduct: (id: string) => Promise<void>;
@@ -181,10 +183,6 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
             throw error;
         }
     };
-    const updateOrderStatus = async (orderId: string, status: Order["status"]) => {
-        const { error } = await supabase.from("orders").update({ status }).eq("id", orderId);
-        if (error) throw error;
-    };
 
     const updateOrder = async (orderId: string, updates: { items: any[]; total: number }) => {
         try {
@@ -309,6 +307,32 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
 
         } catch (error: any) {
             console.error("🚨 Error detallado en deleteOrder:", error.message);
+            throw error;
+        }
+    };
+
+    const updateOrderStatus = async (orderId: string, status: Order["status"]) => {
+        const { error } = await supabase.from("orders").update({ status }).eq("id", orderId);
+        if (error) throw error;
+    };
+
+    const markOrderAsPaid = async (orderId: string) => {
+        try {
+            const { error } = await supabase
+                .from('orders')
+                .update({ is_paid: true }) // Solo actualizamos el booleano
+                .eq('id', orderId);
+
+            if (error) throw error;
+
+            // Actualizamos el estado local de React
+            setOrders(prevOrders => 
+                prevOrders.map(order => 
+                    order.id === orderId ? { ...order, is_paid: true } : order
+                )
+            );
+        } catch (error) {
+            console.error("Error al marcar como pagado:", error);
             throw error;
         }
     };
@@ -470,6 +494,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
             updateOrder,
             deleteOrder,
             updateOrderStatus,
+            markOrderAsPaid,
             createProduct,
             updateProduct,
             deleteProduct,

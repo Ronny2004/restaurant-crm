@@ -20,7 +20,7 @@ type AuthContextType = {
     profile: UserProfile | null;
     session: Session | null;
     loading: boolean;
-    signIn: (email: string, password: string) => Promise<{ error: any }>;
+    signIn: (user: string, password: string) => Promise<{ error: any }>;
     signOut: () => Promise<void>;
     hasRole: (roles: UserRole[]) => boolean;
 };
@@ -85,10 +85,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
-    const signIn = async (email: string, password: string) => {
-        // 1. Autenticacion real con supabase
+    const signIn = async (user: string, password: string) => {
+        let loginEmail = user;
+
+        // Si el identificador NO tiene un '@', asumimos que es un username
+        if (!user.includes("@")) {
+            // Llamamos a la función segura (RPC) que creamos en la base de datos
+            const { data: emailAsociado, error: searchError } = await supabase
+                .rpc('get_email_by_username', { p_username: user });
+
+            if (searchError || !emailAsociado) {
+                return { error: { message: "Credenciales inválidas" } };
+            }
+
+            loginEmail = emailAsociado;
+        }
+
+        // 1. Autenticación real con supabase
         const { data, error } = await supabase.auth.signInWithPassword({
-            email,
+            email: loginEmail,
             password,
         });
 
@@ -96,6 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             await fetchProfile(data.user.id);
             return { error: null };
         }
+        
         return { error };
     };
 

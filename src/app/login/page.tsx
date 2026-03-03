@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { LogIn, Loader2 } from "lucide-react";
 
 export default function LoginPage() {
-    const [email, setEmail] = useState("");
+    const [user, setUser] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
@@ -18,7 +18,7 @@ export default function LoginPage() {
         setError("");
         setLoading(true);
 
-        const { error } = await signIn(email, password);
+        const { error } = await signIn(user, password);
 
         if (error) {
             setError("Credenciales inválidas. Por favor, intenta de nuevo.");
@@ -61,8 +61,8 @@ export default function LoginPage() {
 
                 <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
                     <div>
-                        <label
-                            htmlFor="email"
+                        {/* <label
+                            htmlFor="user"
                             style={{
                                 display: "block",
                                 marginBottom: "0.5rem",
@@ -70,16 +70,16 @@ export default function LoginPage() {
                                 color: "var(--text-muted)"
                             }}
                         >
-                            Correo Electrónico
-                        </label>
+                            Nombre de usuario o email
+                        </label> */}
                         <input
-                            id="email"
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
+                            id="user"
+                            type="text"
+                            value={user}
+                            onChange={(e) => setUser(e.target.value)}
                             required
-                            autoComplete="email"
-                            placeholder="usuario@restaurant.com"
+                            autoComplete="username"
+                            placeholder="Correo electrónico o nombre de usuario"
                             style={{
                                 width: "100%",
                                 padding: "0.875rem",
@@ -96,7 +96,7 @@ export default function LoginPage() {
                     </div>
 
                     <div>
-                        <label
+                        {/* <label
                             htmlFor="password"
                             style={{
                                 display: "block",
@@ -106,7 +106,7 @@ export default function LoginPage() {
                             }}
                         >
                             Contraseña
-                        </label>
+                        </label> */}
                         <input
                             id="password"
                             type="password"
@@ -114,7 +114,8 @@ export default function LoginPage() {
                             onChange={(e) => setPassword(e.target.value)}
                             required
                             autoComplete="current-password"
-                            placeholder="••••••••"
+                            // placeholder="••••••••"
+                            placeholder="Contraseña"
                             style={{
                                 width: "100%",
                                 padding: "0.875rem",

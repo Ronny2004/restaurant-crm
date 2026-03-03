@@ -12,9 +12,11 @@ import { Modal } from "@/components/ui/Modal";
 export default function CajeroPage() {
     const { profile, loading: authLoading } = useAuth();
     const router = useRouter();
-    const { orders, updateOrderStatus, loading } = useSupabase();
+    //const { orders, updateOrderStatus, loading } = useSupabase();
+    const { orders, markOrderAsPaid, loading } = useSupabase();
     const [confirmingPay, setConfirmingPay] = useState<string | null>(null);
     const toast = useToast();
+    
     const getStatusConfig = (status: string) => {
         switch (status) {
             case 'ready':
@@ -24,8 +26,9 @@ export default function CajeroPage() {
             case 'preparing':
                 return { text: 'En Cocina', bg: 'rgba(249, 115, 22, 0.2)', color: '#f97316' }; // Naranja
             case 'pending':
-            default:
                 return { text: 'En Espera', bg: 'rgba(234, 179, 8, 0.2)', color: '#eab308' }; // Amarillo
+            default:
+                return { text: 'Opción invalida', bg: 'rgba(234, 179, 8, 0.2)', color: '#eab308' }; // Amarillo
         }
     };
 
@@ -45,7 +48,8 @@ export default function CajeroPage() {
 
     // Filtramos las no pagadas y las ordenamos por fecha (las más recientes arriba)
     const unpaidOrders = orders
-        .filter(o => o.status !== 'paid')
+        //.filter(o => o.status !== 'paid')
+        .filter(o => !o.is_paid) 
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     if (loading) return <div className="container">Cargando...</div>;
@@ -53,7 +57,8 @@ export default function CajeroPage() {
     const handlePay = async () => {
         if (confirmingPay) {
             try {
-                await updateOrderStatus(confirmingPay, 'paid');
+                // await updateOrderStatus(confirmingPay, 'paid');
+                await markOrderAsPaid(confirmingPay);
                 setConfirmingPay(null);
                 toast("Pago registrado correctamente", "success");
             } catch (error) {
@@ -87,8 +92,8 @@ export default function CajeroPage() {
                             </tr>
                         ) : (
                             unpaidOrders.map((order) => {
-                                // VALIDACIÓN CLAVE: Solo habilitar si está 'ready'
-                                const canPay = order.status === 'ready';
+                                // Administradores pueden cobrar siempre, cajeros solo si la comida ya fue servida
+                                const canPay = profile.role === 'admin' || order.status === 'ready';
                                 const statusConfig = getStatusConfig(order.status);
 
                                 return (
