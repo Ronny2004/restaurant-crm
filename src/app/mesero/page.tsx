@@ -433,7 +433,14 @@ export default function MeseroPage() {
                             <select 
                                 value={selectedProductToAdd}
                                 onChange={(e) => setSelectedProductToAdd(e.target.value)}
-                                style={{ flex: 1, padding: "0.5rem", borderRadius: "8px", background: "var(--surface)", color: "white", border: "1px solid var(--border)" }}
+                                style={{ 
+                                    flex: 1, 
+                                    padding: "0.5rem", 
+                                    borderRadius: "8px", 
+                                    background: "var(--surface)", 
+                                    color: "white", 
+                                    border: "1px solid var(--border)" 
+                                }}
                             >
                                 <option value="">+ Agregar plato o bebida...</option>
                                 {productosDisponibles.map(p => (

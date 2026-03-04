@@ -24,26 +24,35 @@ export type OrderItem = {
 export type Order = {
     id: string;
     table_number: string;
-    status: "pending" | "preparing" | "ready" | "served";
+    status: "pending" | "preparing" | "served" | "ready";
+    status_id: number;
+    status_description?: string;
     is_paid: boolean;
     total: number;
     created_at: string;
     items: OrderItem[];
 };
 
+export type PaymentType = {
+    id: number;
+    type: string;
+    description: string;
+};
+
 type SupabaseContextType = {
     products: Product[];
     orders: Order[];
     fetchProducts: () => Promise<void>;
+    createProduct: (product: Omit<Product, "id">, imageFile?: File) => Promise<void>;
+    updateProduct: (id: string, product: Partial<Omit<Product, "id">>, imageFile?: File) => Promise<void>;
+    deleteProduct: (id: string) => Promise<void>;
     fetchOrders: () => Promise<void>;
     createOrder: (table: string, items: { product: Product; quantity: number }[]) => Promise<void>;
     updateOrder: (orderId: string, updates: { items: { product: Product; quantity: number }[]; total: number }) => Promise<void>;
     deleteOrder: (id: string) => Promise<void>;
     updateOrderStatus: (orderId: string, status: Order["status"]) => Promise<void>;
-    markOrderAsPaid: (orderId: string) => Promise<void>;
-    createProduct: (product: Omit<Product, "id">, imageFile?: File) => Promise<void>;
-    updateProduct: (id: string, product: Partial<Omit<Product, "id">>, imageFile?: File) => Promise<void>;
-    deleteProduct: (id: string) => Promise<void>;
+    markOrderAsPaid: (orderId: string, paymentMethodId: number) => Promise<void>;paymentTypes: PaymentType[];
+    fetchPaymentTypes: () => Promise<void>;
     getSalesData: (startDate: Date, endDate: Date) => Promise<Order[]>;
     loading: boolean;
 };
@@ -53,6 +62,7 @@ const SupabaseContext = createContext<SupabaseContextType | undefined>(undefined
 export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     const [products, setProducts] = useState<Product[]>([]);
     const [orders, setOrders] = useState<Order[]>([]);
+    const [paymentTypes, setPaymentTypes] = useState<PaymentType[]>([]);
     const [loading, setLoading] = useState(true);
 
     // Usamos useCallback para que las funciones no cambien en cada render
@@ -69,11 +79,29 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         if (data) setProducts([...data]);
     }, []);
 
+    const fetchPaymentTypes = useCallback(async () => {
+        try {
+            const { data, error } = await supabase
+                .from('payment_type')
+                .select('*')
+                .order('id', { ascending: true });
+
+            if (error) throw error;
+            setPaymentTypes(data as PaymentType[]);
+        } catch (error) {
+            console.error("Error obteniendo tipos de pago:", error);
+        }
+    }, []);
+
     const fetchOrders = useCallback(async () => {
         const { data, error } = await supabase
             .from("orders")
             .select(`
                 *,
+                status_order (
+                    status,
+                    description
+                ),
                 items:order_items (
                     *,
                     product:products (name)
@@ -88,6 +116,9 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
 
         const formattedOrders = data.map((order: any) => ({
             ...order,
+            // Traducimos la tabla anidada de vuelta a las propiedades que tu UI espera
+            status: order.status_order?.status || "pending",
+            status_description: order.status_order?.description || "",
             items: order.items.map((item: any) => ({
                 ...item,
                 product_name: item.product?.name || "Desconocido"
@@ -97,7 +128,6 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         setOrders(formattedOrders as Order[]);
     }, []);
 
-    // 1. Carga inicial de datos
     // 1. Carga inicial de datos
     useEffect(() => {
         // DECLARACIÓN VITAL PARA EVITAR EL ERROR
@@ -109,7 +139,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
             // Solo actualizamos el estado si el componente sigue montado
             if (isMounted) setLoading(true);
             try {
-                await Promise.all([fetchProducts(), fetchOrders()]);
+                await Promise.all([fetchProducts(), fetchOrders(), fetchPaymentTypes()]);
             } catch (error) {
                 if (isMounted && retryCount < maxRetries) {
                     retryCount++;
@@ -146,13 +176,12 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
                 }
             });
 
-
         return () => {
             // Ahora la variable sí existe en este ámbito
             isMounted = false;
             supabase.removeChannel(channel);
         };
-    }, [fetchProducts, fetchOrders]);
+    }, [fetchProducts, fetchOrders, fetchPaymentTypes]);
 
     // --- Funciones CRUD (Escritura) ---
     const createOrder = async (table: string, items: { product: Product; quantity: number }[]) => {
@@ -311,16 +340,48 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
-    const updateOrderStatus = async (orderId: string, status: Order["status"]) => {
-        const { error } = await supabase.from("orders").update({ status }).eq("id", orderId);
-        if (error) throw error;
+    // Diccionario de traducción de texto a ID de la base de datos
+    const STATUS_TO_ID: Record<string, number> = {
+        'pending': 1,
+        'preparing': 2,
+        'served': 3,
+        'ready': 4
     };
 
-    const markOrderAsPaid = async (orderId: string) => {
+    const updateOrderStatus = async (orderId: string, newStatus: Order["status"]) => {
+        try {
+            const newStatusId = STATUS_TO_ID[newStatus];
+
+            // Actualizamos usando el nuevo ID
+            const { error } = await supabase
+                .from("orders")
+                .update({ status_id: newStatusId })
+                .eq("id", orderId);
+
+            if (error) throw error;
+
+            // Actualizamos el estado local en React
+            setOrders(prevOrders => 
+                prevOrders.map(order => 
+                    order.id === orderId 
+                        ? { ...order, status: newStatus, status_id: newStatusId } 
+                        : order
+                )
+            );
+        } catch (error) {
+            console.error("Error al actualizar el estado de la orden:", error);
+            throw error;
+        }
+    };
+
+    const markOrderAsPaid = async (orderId: string, paymentMethodId: number) => {
         try {
             const { error } = await supabase
                 .from('orders')
-                .update({ is_paid: true }) // Solo actualizamos el booleano
+                .update({ 
+                    is_paid: true,
+                    payment_type_id: paymentMethodId
+                })
                 .eq('id', orderId);
 
             if (error) throw error;
@@ -487,17 +548,19 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     return (
         <SupabaseContext.Provider value={{
             products,
-            orders,
             fetchProducts,
+            createProduct,
+            updateProduct,
+            deleteProduct,
+            orders,
             fetchOrders,
             createOrder,
             updateOrder,
             deleteOrder,
             updateOrderStatus,
             markOrderAsPaid,
-            createProduct,
-            updateProduct,
-            deleteProduct,
+            paymentTypes,
+            fetchPaymentTypes,
             getSalesData: async (start, end) => {
                 const { data, error } = await supabase
                     .from("orders")

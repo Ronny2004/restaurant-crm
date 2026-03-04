@@ -13,8 +13,9 @@ export default function CajeroPage() {
     const { profile, loading: authLoading } = useAuth();
     const router = useRouter();
     //const { orders, updateOrderStatus, loading } = useSupabase();
-    const { orders, markOrderAsPaid, loading } = useSupabase();
+    const { orders, markOrderAsPaid, loading, paymentTypes } = useSupabase();
     const [confirmingPay, setConfirmingPay] = useState<string | null>(null);
+    const [paymentMethod, setPaymentMethod] = useState<number | "">(""); 
     const toast = useToast();
     
     const getStatusConfig = (status: string) => {
@@ -55,11 +56,13 @@ export default function CajeroPage() {
     if (loading) return <div className="container">Cargando...</div>;
 
     const handlePay = async () => {
-        if (confirmingPay) {
+        // Aseguramos que tengan un método de pago seleccionado que no sea vacío
+        if (confirmingPay && paymentMethod !== "") {
             try {
                 // await updateOrderStatus(confirmingPay, 'paid');
-                await markOrderAsPaid(confirmingPay);
+                await markOrderAsPaid(confirmingPay, paymentMethod as number); 
                 setConfirmingPay(null);
+                setPaymentMethod(""); // Reseteamos a vacío para el próximo cobro
                 toast("Pago registrado correctamente", "success");
             } catch (error) {
                 toast("Error al procesar el pago", "error");
@@ -161,7 +164,10 @@ export default function CajeroPage() {
             {/* Modal de Confirmación */}
             <Modal
                 isOpen={!!confirmingPay}
-                onClose={() => setConfirmingPay(null)}
+                onClose={() => {
+                    setConfirmingPay(null);
+                    setPaymentMethod(""); // Reset al cerrar modal
+                }}
                 title="Confirmar Pago"
             >
                 <div style={{ textAlign: "center" }}>
@@ -178,18 +184,59 @@ export default function CajeroPage() {
                     }}>
                         <DollarSign size={32} />
                     </div>
-                    <p style={{ marginBottom: "2rem", color: "var(--text-muted)", fontSize: "1.1rem" }}>
+                    <p style={{ marginBottom: "1rem", color: "var(--text-muted)", fontSize: "1.1rem" }}>
                         ¿Confirmar el cobro de la mesa <strong style={{ color: "white" }}>#{unpaidOrders.find(o => o.id === confirmingPay)?.table_number}</strong>?
                         <br />
                         <strong style={{ color: "var(--success)", fontSize: "1.5rem", display: "block", marginTop: "0.5rem" }}>
                             ${unpaidOrders.find(o => o.id === confirmingPay)?.total.toFixed(2)}
                         </strong>
                     </p>
+                    <div style={{ marginBottom: "2rem", textAlign: "left" }}>
+                        <label style={{ display: "block", marginBottom: "0.5rem", color: "var(--text-muted)", fontSize: "0.9rem" }}>
+                            Método de Pago:
+                        </label>
+                        <select
+                            value={paymentMethod}
+                            onChange={(e) => setPaymentMethod(e.target.value === "" ? "" : Number(e.target.value))}
+                            style={{
+                                width: "100%",
+                                padding: "0.75rem",
+                                borderRadius: "8px",
+                                background: "var(--surface)",
+                                color: "white",
+                                border: "1px solid var(--border)",
+                                fontSize: "1rem",
+                                outline: "none"
+                            }}
+                        >
+                            <option value="">Escoja el tipo de pago</option>
+                            {paymentTypes && paymentTypes.map(tp => (
+                                <option key={tp.id} value={tp.id}>
+                                    {/* Ponemos la primera letra en mayúscula para que se vea bien */}
+                                    {tp.type.charAt(0).toUpperCase() + tp.type.slice(1)}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
                     <div style={{ display: "flex", gap: "1rem", justifyContent: "center" }}>
-                        <button onClick={() => setConfirmingPay(null)} className="btn btn-secondary" style={{ minWidth: "120px" }}>
+                        <button onClick={() => {
+                            setConfirmingPay(null);
+                            setPaymentMethod("");
+                        }} className="btn btn-secondary" style={{ minWidth: "120px" }}>
                             Cancelar
                         </button>
-                        <button onClick={handlePay} className="btn btn-primary" style={{ minWidth: "120px" }}>
+                        <button 
+                            onClick={handlePay} 
+                            className="btn btn-primary" 
+                            disabled={paymentMethod === ""} // Bloqueamos el botón si no han elegido método
+                            title="Por favor escoja un método de pago para habilitar el botón"
+                            style={{ 
+                                minWidth: "120px",
+                                opacity: paymentMethod === "" ? 0.5 : 1,
+                                cursor: paymentMethod === "" ? "not-allowed" : "pointer"
+                            }}
+                        >
                             Confirmar
                         </button>
                     </div>
