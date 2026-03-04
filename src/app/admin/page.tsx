@@ -18,7 +18,7 @@ export default function AdminPage() {
     const router = useRouter();
     const { 
         products, orders, loading, 
-        fetchProducts, 
+        // fetchProducts, <--- Eliminado para evitar bucles, el Provider ya lo hace
         createProduct, 
         updateProduct, 
         deleteProduct 
@@ -35,15 +35,12 @@ export default function AdminPage() {
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Protección de ruta y carga inicial
+    // Protección de ruta (CORREGIDO: Bucle infinito eliminado)
     useEffect(() => {
         if (!authLoading && (!profile || profile.role !== "admin")) {
             router.push("/login");
         }
-        if (products.length === 0) {
-            fetchProducts();
-        }
-    }, [authLoading, profile, router, products.length, fetchProducts]);
+    }, [authLoading, profile, router]);
 
     if (authLoading || !profile || profile.role !== "admin") {
         return (
@@ -55,16 +52,20 @@ export default function AdminPage() {
 
     // Cálculos de Estadísticas
     const totalSales = orders
-        .filter(o => o.status === 'paid')
-        .reduce((sum, o) => sum + o.total, 0);
+        .filter(o => o.is_paid) 
+        .reduce((sum, o) => sum + (o.total || 0), 0); // Seguro contra totales nulos
 
+    const totalPaidOrders = orders.filter(o => o.is_paid).length;
+    
     const totalOrders = orders.length;
 
-    // Producto más vendido
+    // Producto más vendido (CORREGIDO: Crash de pantalla blanca evitado)
     const itemCounts: Record<string, number> = {};
     orders.forEach(o => {
-        o.items.forEach(i => {
-            itemCounts[i.product_name] = (itemCounts[i.product_name] || 0) + i.quantity;
+        // El signo de interrogación (?.) salva la página si una orden no tiene items
+        o.items?.forEach(i => { 
+            const nombre = i.product_name || "Desconocido"; // Seguro contra nombres nulos
+            itemCounts[nombre] = (itemCounts[nombre] || 0) + (i.quantity || 1);
         });
     });
     const bestSeller = Object.entries(itemCounts).sort((a, b) => b[1] - a[1])[0] || ["N/A", 0];
@@ -97,21 +98,13 @@ export default function AdminPage() {
     const confirmDelete = async () => {
         if (deletingProduct) {
             try {
-                // Intentamos borrar en la base de datos
                 await deleteProduct(deletingProduct.id);
-
-                // Si llega aquí, es porque se borró correctamente
                 setDeletingProduct(null);
                 toast("Producto eliminado con éxito", "success");
             } catch (error: any) {
-                // Capturamos el mensaje específico (ej: "No se puede eliminar porque tiene ventas")
                 const errorMessage = error.message || "Error al eliminar producto";
                 toast(errorMessage, "error");
-
-                // Forzamos un refresco por si la UI se desincronizó
-                fetchProducts();
             } finally {
-                // Cerramos el modal de confirmación pase lo que pase
                 setDeletingProduct(null);
             }
         }
@@ -262,8 +255,6 @@ export default function AdminPage() {
                                         <option value="platos">Platos</option>
                                         <option value="bebidas">Bebidas</option>
                                         <option value="porciones">Porciones</option>
-                                        {/* A la larga, aquí puedes mapear un array 'categorias.map(...)' 
-                                            que venga de una tabla de base de datos o un diccionario */}
                                     </select>
                                 </td>
                                 <td style={{ padding: "1rem" }}>
