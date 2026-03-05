@@ -230,7 +230,7 @@ export default function CajeroPage() {
                             onClick={handlePay} 
                             className="btn btn-primary" 
                             disabled={paymentMethod === ""} // Bloqueamos el botón si no han elegido método
-                            title="Por favor escoja un método de pago para habilitar el botón"
+                            title={paymentMethod === "" ? "Por favor escoja un método de pago para habilitar el botón" : "Cobrar el pedido"}
                             style={{ 
                                 minWidth: "120px",
                                 opacity: paymentMethod === "" ? 0.5 : 1,
