@@ -115,7 +115,7 @@ export default function MeseroPage() {
             // Si intenta sumar (+), validamos contra el límite real
             if (delta > 0 && product && existing) {
                 if (existing.quantity >= maxAllowed) {
-                    toast(`Solo puedes pedir ${product.stock} más (Total: ${maxAllowed})`, "error");
+                    toast(`Producto sin stock`, "error");
                     return prev; 
                 }
             }
@@ -152,7 +152,7 @@ export default function MeseroPage() {
             if (existing) {
                 // Comparamos contra el nuevo límite real
                 if (existing.quantity >= maxAllowed) {
-                    toast(`Solo puedes pedir ${product.stock} más (Total: ${maxAllowed})`, "error");
+                    toast(`Producto sin stock`, "error");
                     return prev;
                 }
                 return prev.map(p => (p.product?.id || p.product_id) === product.id ? { ...p, quantity: p.quantity + 1 } : p);
