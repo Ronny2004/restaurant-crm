@@ -252,9 +252,9 @@ export default function AdminPage() {
                                         }}
                                     >
                                         <option value="">Seleccionar...</option>
-                                        <option value="platos">Platos</option>
-                                        <option value="bebidas">Bebidas</option>
-                                        <option value="porciones">Porciones</option>
+                                        <option value="Platos">Platos</option>
+                                        <option value="Bebidas">Bebidas</option>
+                                        <option value="Porciones">Porciones</option>
                                     </select>
                                 </td>
                                 <td style={{ padding: "1rem" }}>
@@ -309,12 +309,22 @@ export default function AdminPage() {
                                             />
                                         </td>
                                         <td style={{ padding: "1rem" }}>
-                                            <input
-                                                type="text"
+                                            <select
                                                 value={formData.category}
                                                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-
-                                            />
+                                                style={{ 
+                                                    width: "100%", 
+                                                    padding: "0.4rem", 
+                                                    borderRadius: "4px", 
+                                                    background: "var(--surface)", 
+                                                    color: "white" 
+                                                }}
+                                            >
+                                                <option value="">Seleccionar...</option>
+                                                <option value="Platos">Platos</option>
+                                                <option value="Bebidas">Bebidas</option>
+                                                <option value="Porciones">Porciones</option>
+                                            </select>
                                         </td>
                                         <td style={{ padding: "1rem" }}>
                                             <input

@@ -1,6 +1,7 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useSupabase } from "@/context/SupabaseProvider";
+import { supabase } from "@/lib/supabaseClient"; 
 import { ChevronLeft, Calendar as CalendarIcon, RefreshCcw, Plus, X, Filter, Download } from "lucide-react";
 import Link from "next/link";
 import * as XLSX from "xlsx";
@@ -8,7 +9,7 @@ import * as XLSX from "xlsx";
 // Definimos la estructura del nuevo bloque de filtros
 type FilterCategory = 'fecha' | 'estado' | 'monto' | '';
 type DateFilterType = 'day' | 'month' | 'year' | 'range' | 'all';
-type StatusFilterType = 'pending' | 'preparing' | 'served' | 'ready' | 'paid' | 'all';
+type StatusFilterType = 'pending' | 'preparing' | 'served' | 'ready' | 'paid' | 'canceled' | 'all'; 
 type AmountFilterType = 'mayor' | 'menor' | 'rango' | 'all';
 
 interface FilterBlock {
@@ -27,9 +28,10 @@ interface FilterBlock {
 }
 
 export default function VentasTotalesPage() {
-    const { orders, fetchProducts } = useSupabase(); 
+    const { orders, products } = useSupabase(); 
+    
+    const [canceledOrders, setCanceledOrders] = useState<any[]>([]);
 
-    // Estados para manejar los filtros dinámicos y compactos
     const [filters, setFilters] = useState<FilterBlock[]>([{
         id: Date.now().toString(),
         category: '',
@@ -45,19 +47,87 @@ export default function VentasTotalesPage() {
         amountMax: ''
     }]);
 
+    useEffect(() => {
+        const fetchCanceledOrders = async () => {
+            if (!products || products.length === 0) return;
+
+            const { data, error } = await supabase
+                .from('auditoria_pedidos')
+                .select('*')
+                .eq('estado_pedido', 'Cancelado / Eliminado'); 
+
+            if (data && !error) {
+                const mappedCanceled = data.map((audit: any) => {
+                    let calcTotal = 0;
+                    
+                    const stringDetalle = audit.pedido_original || ''; 
+                    
+                    if (stringDetalle) {
+                        const regex = /([^,(]+?)\s*\(x(\d+)\)/g;
+                        let match;
+                        while ((match = regex.exec(stringDetalle)) !== null) {
+                            const prodName = match[1].trim();
+                            const qty = parseInt(match[2], 10);
+                            
+                            const prod = products.find((p: any) => 
+                                (p.nombre && p.nombre.toLowerCase() === prodName.toLowerCase()) ||
+                                (p.name && p.name.toLowerCase() === prodName.toLowerCase())
+                            );
+                            
+                            if (prod) {
+                                calcTotal += (prod.price || 0) * qty;
+                            }
+                        }
+                    }
+
+                    return {
+                        id: `audit-${audit.id}`,
+                        created_at: audit.created_at || new Date().toISOString(),
+                        table_number: audit.mesa,
+                        status: 'canceled', 
+                        is_paid: false,
+                        total: calcTotal,
+                        // Asignamos el usuario de la auditoría a la columna cancelado_por
+                        cancelado_por: audit.usuario || 'Desconocido',
+                        mesero: '-',
+                        cocinero: '-',
+                        cajero: '-'
+                    };
+                });
+                setCanceledOrders(mappedCanceled);
+            }
+        };
+
+        fetchCanceledOrders();
+    }, [products]); 
+
+    const allTransactions = useMemo(() => {
+        // Mapeamos las órdenes normales para preparar los campos de los perfiles
+        const mappedOrders = orders.map((o: any) => ({
+            ...o,
+            // Asumimos que los nombres vendrán en estas propiedades
+            mesero: o.mesero || '-',
+            cocinero: o.cocinero || '-',
+            cajero: o.cajero || '-',
+            cancelado_por: '-'
+        }));
+        
+        return [...mappedOrders, ...canceledOrders];
+    }, [orders, canceledOrders]);
+
     const availableYears = useMemo(() => {
-        const years = orders.map(o => new Date(o.created_at).getFullYear());
+        const years = allTransactions.map(o => new Date(o.created_at).getFullYear());
         const uniqueYears = Array.from(new Set(years)).sort((a, b) => b - a);
         return uniqueYears.length > 0 ? uniqueYears : [new Date().getFullYear()];
-    }, [orders]);
+    }, [allTransactions]);
 
-    // Función auxiliar para traducir los estados de cocina
     const traducirEstado = (status: string) => {
         switch(status) {
             case 'pending': return 'Pendiente';
             case 'preparing': return 'Preparando';
             case 'served': return 'Sirviendo';
             case 'ready': return 'Servido';
+            case 'canceled': return 'Cancelado/Eliminado'; 
             default: return status;
         }
     };
@@ -89,7 +159,7 @@ export default function VentasTotalesPage() {
     };
 
     const filteredSales = useMemo(() => {
-        return orders.filter(order => {
+        return allTransactions.filter(order => {
             
             const orderDate = new Date(order.created_at);
 
@@ -133,7 +203,7 @@ export default function VentasTotalesPage() {
             }
             return true; 
         });
-    }, [orders, filters]);
+    }, [allTransactions, filters]); 
 
     const totalCalculado = filteredSales.reduce((acc, curr) => acc + curr.total, 0);
 
@@ -143,6 +213,10 @@ export default function VentasTotalesPage() {
         const dataToExport = filteredSales.map(sale => ({
             "Fecha y Hora": new Date(sale.created_at).toLocaleString(),
             "Mesa": `Mesa ${sale.table_number}`,
+            "Mesero": sale.mesero,
+            "Cocinero": sale.cocinero,
+            "Cajero": sale.cajero,
+            "Cancelado Por": sale.cancelado_por,
             "Estado": sale.is_paid ? "Pagado" : traducirEstado(sale.status),
             "Total ($)": sale.total
         }));
@@ -150,6 +224,10 @@ export default function VentasTotalesPage() {
         dataToExport.push({
             "Fecha y Hora": "TOTAL GENERAL",
             "Mesa": "",
+            "Mesero": "",
+            "Cocinero": "",
+            "Cajero": "",
+            "Cancelado Por": "",
             "Estado": "", 
             "Total ($)": parseFloat(totalCalculado.toFixed(2))
         });
@@ -157,10 +235,14 @@ export default function VentasTotalesPage() {
         const worksheet = XLSX.utils.json_to_sheet(dataToExport);
 
         const columnWidths = [
-            { wch: 25 }, 
-            { wch: 15 }, 
-            { wch: 18 }, 
-            { wch: 15 }  
+            { wch: 22 }, // Fecha
+            { wch: 12 }, // Mesa
+            { wch: 15 }, // Mesero
+            { wch: 15 }, // Cocinero
+            { wch: 15 }, // Cajero
+            { wch: 18 }, // Cancelado Por
+            { wch: 15 }, // Estado
+            { wch: 12 }  // Total
         ];
         worksheet['!cols'] = columnWidths;
 
@@ -179,7 +261,6 @@ export default function VentasTotalesPage() {
                 <h1>Historial de Ventas</h1>
             </header>
 
-            {/* PANEL DE CONTROL DE FILTROS - Diseño Compacto e Inline */}
             <div className="glass-panel" style={{ padding: "0.75rem", marginBottom: "1.5rem", borderRadius: "12px" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
                     
@@ -187,11 +268,9 @@ export default function VentasTotalesPage() {
                         <Filter size={20} /> Panel de Control de Filtros
                     </h3>
 
-                    {/* Renderizamos todos los filtros activos de forma compacta */}
                     {filters.map((f, index) => (
                         <div key={f.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 2fr 40px", gap: "1rem", alignItems: "center", padding: "0.75rem", background: "rgba(255,255,255,0.02)", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.05)" }}>
                             
-                            {/* 1. Selector principal - Categoría (Sin labels repetitivos) */}
                             <select 
                                 value={f.category} 
                                 onChange={(e) => updateFilter(f.id, 'category', e.target.value)}
@@ -204,7 +283,6 @@ export default function VentasTotalesPage() {
                                 <option value="monto">Monto</option>
                             </select>
 
-                            {/* --- CONTROLES COMPACTOS PARA FECHA --- */}
                             {f.category === 'fecha' && (
                                 <select 
                                     value={f.dateType} 
@@ -238,7 +316,6 @@ export default function VentasTotalesPage() {
                                 </div>
                             )}
 
-                            {/* --- CONTROLES COMPACTOS PARA ESTADO --- */}
                             {f.category === 'estado' && (
                                 <select 
                                     value={f.statusValue} 
@@ -252,11 +329,11 @@ export default function VentasTotalesPage() {
                                     <option value="served">Sirviendo</option>
                                     <option value="ready">Servido</option>
                                     <option value="paid">Pagado</option>
+                                    <option value="canceled">Cancelado/Eliminado</option> 
                                 </select>
                             )}
-                            {f.category === 'estado' && <div />} {/* Columna vacía */}
+                            {f.category === 'estado' && <div />} 
 
-                            {/* --- CONTROLES COMPACTOS PARA MONTO --- */}
                             {f.category === 'monto' && (
                                 <select 
                                     value={f.amountType} 
@@ -282,12 +359,9 @@ export default function VentasTotalesPage() {
                                 </div>
                             )}
 
-                            {/* Celda vacía para ocupar la segunda columna si no se ha escogido categoría */}
                             {f.category === '' && <div />}
-                            {/* Celda vacía para ocupar la tercera columna si no se ha escogido categoría */}
                             {f.category === '' && <div />}
 
-                            {/* Botón para eliminar un filtro (visible solo si hay más de 1) */}
                             {filters.length > 1 && (
                                 <button 
                                     onClick={() => removeFilter(f.id)} 
@@ -302,8 +376,8 @@ export default function VentasTotalesPage() {
                     ))}
 
                     {/* Botón verde para sumar otro filtro */}
-                    {/* La condición envuelve todo el div. Solo se muestra si hay menos de 5 y NINGUNO está vacío */}
-                    {filters.length < 5 && !filters.some(f => f.category === "") && (
+                    {/* La condición envuelve todo el div. Solo se muestra si hay menos de 3 y NINGUNO está vacío */}
+                    {filters.length < 3 && !filters.some(f => f.category === "") && (
                         <div>
                             <button 
                                 onClick={addFilter}
@@ -325,7 +399,6 @@ export default function VentasTotalesPage() {
                 </div>
             </div>
 
-            {/* TABLA DE RESULTADOS - Reducida en padding general */}
             <div className="glass-panel" style={{ padding: "0", borderRadius: "12px" }}>
                 <div style={{ padding: "1rem", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
                     
@@ -358,11 +431,15 @@ export default function VentasTotalesPage() {
                     <h2 style={{ color: "var(--primary)", margin: 0, fontSize: "1.6rem" }}>Total: ${totalCalculado.toFixed(2)}</h2>
                 </div>
                 <div style={{ overflowX: "auto" }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "700px" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "1000px" }}>
                         <thead>
                             <tr style={{ textAlign: "left", background: "rgba(255,255,255,0.02)", borderBottom: "1px solid var(--border)" }}>
                                 <th style={{ padding: "0.75rem 1rem", color: "white" }}>Fecha y Hora</th>
                                 <th style={{ padding: "0.75rem 1rem", color: "white" }}>Mesa</th>
+                                <th style={{ padding: "0.75rem 1rem", color: "white" }}>Mesero</th>
+                                <th style={{ padding: "0.75rem 1rem", color: "white" }}>Cocinero</th>
+                                <th style={{ padding: "0.75rem 1rem", color: "white" }}>Cajero</th>
+                                <th style={{ padding: "0.75rem 1rem", color: "white" }}>Cancelado Por</th>
                                 <th style={{ padding: "0.75rem 1rem", color: "white" }}>Estado</th>
                                 <th style={{ padding: "0.75rem 1rem", textAlign: "right", color: "white" }}>Monto</th>
                             </tr>
@@ -373,6 +450,19 @@ export default function VentasTotalesPage() {
                                     <tr key={sale.id} style={{ borderBottom: "1px solid var(--border)" }}>
                                         <td style={{ padding: "0.75rem 1rem", fontSize: "0.95rem" }}>{new Date(sale.created_at).toLocaleString()}</td>
                                         <td style={{ padding: "0.75rem 1rem", fontSize: "0.95rem" }}>Mesa {sale.table_number}</td>
+                                        
+                                        {/* NUEVAS COLUMNAS DE USUARIOS */}
+                                        <td style={{ padding: "0.75rem 1rem", fontSize: "0.95rem" }}>{sale.mesero}</td>
+                                        <td style={{ padding: "0.75rem 1rem", fontSize: "0.95rem" }}>{sale.cocinero}</td>
+                                        <td style={{ padding: "0.75rem 1rem", fontSize: "0.95rem" }}>{sale.cajero}</td>
+                                        <td style={{ padding: "0.75rem 1rem", fontSize: "0.95rem" }}>
+                                            {sale.status === 'canceled' ? (
+                                                <span style={{ color: "#ef4444", fontWeight: "bold" }}>{sale.cancelado_por}</span>
+                                            ) : (
+                                                <span style={{ color: "var(--text-muted)" }}>-</span>
+                                            )}
+                                        </td>
+
                                         <td style={{ padding: "0.75rem 1rem" }}>
                                             <span style={{
                                                 padding: "0.2rem 0.6rem",
@@ -381,11 +471,15 @@ export default function VentasTotalesPage() {
                                                 fontWeight: "500",
                                                 background: sale.is_paid 
                                                     ? "rgba(34, 197, 94, 0.2)" 
+                                                    : sale.status === 'canceled'
+                                                        ? "rgba(239, 68, 68, 0.2)" 
                                                     : sale.status === 'ready' || sale.status === 'served'
                                                         ? "rgba(59, 130, 246, 0.2)" // Azulito p/ listo/servido
                                                         : "rgba(234, 179, 8, 0.2)", // Amarillo p/ pendiente
                                                 color: sale.is_paid 
                                                     ? "#4ade80" 
+                                                    : sale.status === 'canceled'
+                                                        ? "#ef4444" 
                                                     : sale.status === 'ready' || sale.status === 'served'
                                                         ? "#60a5fa"
                                                         : "#eab308"
@@ -398,7 +492,7 @@ export default function VentasTotalesPage() {
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan={4} style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)", fontSize: "0.95rem" }}>
+                                    <td colSpan={8} style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)", fontSize: "0.95rem" }}>
                                         No se encontraron ventas que coincidan con estos filtros.
                                     </td>
                                 </tr>
