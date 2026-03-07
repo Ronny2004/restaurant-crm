@@ -56,6 +56,18 @@ export type Auditoria_Pedidos = {
     itemsAudit?: AuditItem[]; // Opcional, por si decides parsearlo aquí o en el componente
 };
 
+export type ReporteVenta = {
+    pedido_id: string;
+    fecha_hora: string;
+    mesa: string; 
+    mesero: string;
+    cocinero: string;
+    cajero: string;
+    cancelado_por: string;
+    estado: string;
+    monto: number;
+};
+
 type SupabaseContextType = {
     products: Product[];
     orders: Order[];
@@ -70,10 +82,13 @@ type SupabaseContextType = {
     updateOrder: (orderId: string, updates: { items: { product: Product; quantity: number }[]; total: number }) => Promise<void>;
     deleteOrder: (id: string) => Promise<void>;
     updateOrderStatus: (orderId: string, status: Order["status"]) => Promise<void>;
-    markOrderAsPaid: (orderId: string, paymentMethodId: number) => Promise<void>;paymentTypes: PaymentType[];
+    markOrderAsPaid: (orderId: string, paymentMethodId: number) => Promise<void>;
+    paymentTypes: PaymentType[];
     fetchPaymentTypes: () => Promise<void>;
     getSalesData: (startDate: Date, endDate: Date) => Promise<Order[]>;
     fetchAuditorias: () => Promise<void>;
+    reportes: ReporteVenta[];
+    fetchReportes: () => Promise<void>;
 };
 
 const SupabaseContext = createContext<SupabaseContextType | undefined>(undefined);
@@ -84,6 +99,21 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     const [paymentTypes, setPaymentTypes] = useState<PaymentType[]>([]);
     const [loading, setLoading] = useState(true);
     const [auditorias, setAuditorias] = useState<Auditoria_Pedidos[]>([]);
+    const [reportes, setReportes] = useState<ReporteVenta[]>([]);
+
+    // --- Función Auxiliar para Reporte de Ventas ---
+    const getCurrentUsername = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return null;
+        
+        const { data } = await supabase
+            .from('profiles')
+            .select('username')
+            .eq('id', user.id)
+            .single();
+            
+        return data?.username || 'Usuario Desconocido';
+    };
 
     // Usamos useCallback para que las funciones no cambien en cada render
     const fetchProducts = useCallback(async () => {
@@ -161,6 +191,19 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         if (data) setAuditorias(data as Auditoria_Pedidos[]);
     }, []);
 
+    const fetchReportes = useCallback(async () => {
+        const { data, error } = await supabase
+            .from("reporte_ventas")
+            .select("*")
+            .order('fecha_hora', { ascending: false });
+
+        if (error) {
+            console.error("Error al obtener los reportes:", error);
+            return;
+        }
+        if (data) setReportes(data as ReporteVenta[]);
+    }, []);
+
     // 1. Carga inicial de datos
     useEffect(() => {
         // DECLARACIÓN VITAL PARA EVITAR EL ERROR
@@ -172,7 +215,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
             // Solo actualizamos el estado si el componente sigue montado
             if (isMounted) setLoading(true);
             try {
-                await Promise.all([fetchProducts(), fetchOrders(), fetchPaymentTypes(), fetchAuditorias()]);
+                await Promise.all([fetchProducts(), fetchOrders(), fetchPaymentTypes(), fetchReportes()]);
             } catch (error) {
                 if (isMounted && retryCount < maxRetries) {
                     retryCount++;
@@ -201,6 +244,14 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
                 () => {
                     console.log("Cambio en productos detectado");
                     fetchProducts();
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'reporte_ventas' },
+                () => {
+                    console.log("Cambio en reporte_ventas detectado");
+                    fetchReportes();
                 }
             )
             .subscribe((status) => {
@@ -240,6 +291,18 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
 
             if (rpcError) throw rpcError;
 
+            // --- REPORTE DE VENTAS: Insertamos la nueva orden ---
+            if (orderId) {
+                const username = await getCurrentUsername();
+                await supabase.from('reporte_ventas').insert({
+                    pedido_id: orderId,
+                    mesa: table,
+                    mesero: username || 'Desconocido',
+                    estado: 'pending',
+                    monto: total
+                });
+            }
+
         } catch (error: any) {
             console.error("Error detallado en createOrder:", error.message);
             throw error;
@@ -249,7 +312,6 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     const updateOrder = async (orderId: string, updates: { items: any[]; total: number }) => {
         try {
             // --- 1. AUDITORÍA: Recopilar datos ANTES de modificar ---
-            // A. Obtener el número de mesa y el usuario actual
             const { data: orderData } = await supabase
                 .from('orders')
                 .select('table_number, created_by')
@@ -257,7 +319,6 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
                 .single();
             const tableNumber = orderData?.table_number || 'Desconocida';
 
-            // Obtener el perfil del usuario actual para la auditoría
             const { data: userData } = await supabase.auth.getUser();
             const { data: profileData } = await supabase
                 .from('profiles')
@@ -266,13 +327,11 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
                 .single();
             const userName = profileData?.username || 'Usuario desconocido';
 
-            // B. Obtener los nombres y cantidades de los items viejos (Pedido Original)
             const { data: oldItemsData } = await supabase
                 .from('order_items')
                 .select('product_id, quantity, products(name)')
                 .eq('order_id', orderId);
             
-            // Construimos el string del pedido original (Ej: "2x Hamburguesa, 1x Cola")
             let pedidoOriginal = '';
             if (oldItemsData && oldItemsData.length > 0) {
                 pedidoOriginal = oldItemsData.map((item: any) => 
@@ -282,20 +341,28 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
                 pedidoOriginal = 'Sin items originales';
             }
 
-            // C. Construimos el string del pedido actualizado (Pedido Nuevo)
             const pedidoActualizado = updates.items.map((item: any) => {
                 const prodName = item.product?.name || item.product_name || 'Producto';
                 return `${prodName} (x${item.quantity})`;
             }).join(', ');
             // --------------------------------------------------------
 
-            // 2. Actualizamos el total de la orden
+            // 2. Actualizamos el total de la orden en la tabla principal
             const { error: orderError } = await supabase
                 .from('orders')
                 .update({ total: updates.total })
                 .eq('id', orderId);
             
             if (orderError) throw orderError;
+
+            // --- 2.5 NUEVO: ACTUALIZAMOS EL MONTO EN REPORTE DE VENTAS ---
+            const { error: reporteError } = await supabase
+                .from('reporte_ventas')
+                .update({ monto: updates.total })
+                .eq('pedido_id', orderId);
+                
+            if (reporteError) console.error("Error al actualizar monto en reporte_ventas:", reporteError.message);
+            // -------------------------------------------------------------
 
             // 3. Borramos los items antiguos
             const { error: deleteError } = await supabase
@@ -322,24 +389,40 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
                 if (insertError) throw insertError;
             }
 
-            // --- 6. AUDITORÍA: Guardar directamente en la nueva tabla auditoria_pedidos ---
-            // Solo auditamos si realmente hubo un cambio en los items
+            // --- 6. AUDITORÍA: EVITAR FILAS DUPLICADAS ---
             if (pedidoOriginal !== pedidoActualizado) {
-                const { error: auditError } = await supabase
+                const { data: existingAudit } = await supabase
                     .from('auditoria_pedidos')
-                    .insert({
-                        pedido_id: orderId,
-                        mesa: tableNumber,
-                        usuario: userName,
-                        estado_pedido: 'Editado',
-                        pedido_original: pedidoOriginal,
-                        pedido_actualizado: pedidoActualizado
-                        // fecha_hora se genera automáticamente en tu base de datos
-                    });
-                
-                if (auditError) {
-                    console.error("No se pudo guardar la auditoría:", auditError.message);
-                    // No lanzamos el error para no romper la edición de la orden, pero lo registramos
+                    .select('id')
+                    .eq('pedido_id', orderId)
+                    .maybeSingle();
+
+                if (existingAudit) {
+                    const { error: auditError } = await supabase
+                        .from('auditoria_pedidos')
+                        .update({
+                            usuario: userName,
+                            estado_pedido: 'Editado',
+                            pedido_original: pedidoOriginal,
+                            pedido_actualizado: pedidoActualizado,
+                            fecha_hora: new Date().toISOString()
+                        })
+                        .eq('id', existingAudit.id);
+                    
+                    if (auditError) console.error("Error al actualizar la auditoría:", auditError.message);
+                } else {
+                    const { error: auditError } = await supabase
+                        .from('auditoria_pedidos')
+                        .insert({
+                            pedido_id: orderId,
+                            mesa: tableNumber,
+                            usuario: userName,
+                            estado_pedido: 'Editado',
+                            pedido_original: pedidoOriginal,
+                            pedido_actualizado: pedidoActualizado
+                        });
+                    
+                    if (auditError) console.error("Error al guardar la auditoría:", auditError.message);
                 }
             }
             // -----------------------------------------------------------
@@ -355,6 +438,9 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         try {
             console.log("1. Iniciando borrado para la orden ID:", id);
 
+            // Obtenemos el usuario antes de borrar
+            const username = await getCurrentUsername();
+
             const { data: deletedData, error: deleteError } = await supabase
                 .from("orders")
                 .delete()
@@ -367,6 +453,15 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
             if (!deletedData || deletedData.length === 0) {
                 throw new Error(`Supabase no eliminó la orden ${id}. Verifica RLS o si el ID es correcto.`);
             }
+
+            // --- REPORTE DE VENTAS: Actualizamos el estado a cancelado ---
+            await supabase
+                .from('reporte_ventas')
+                .update({ 
+                    estado: 'canceled',
+                    cancelado_por: username || 'Desconocido'
+                })
+                .eq('pedido_id', id);
 
             // Actualizamos el estado local en React
             setOrders(prev => prev.filter(o => o.id !== id));
@@ -398,6 +493,19 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
 
             if (error) throw error;
 
+            // --- REPORTE DE VENTAS: Actualizamos el estado y el cocinero si aplica ---
+            const username = await getCurrentUsername();
+            let reporteUpdates: any = { estado: newStatus };
+            
+            if (newStatus === 'preparing' || newStatus === 'served') {
+                reporteUpdates.cocinero = username || 'Desconocido';
+            }
+
+            await supabase
+                .from('reporte_ventas')
+                .update(reporteUpdates)
+                .eq('pedido_id', orderId);
+
             // Actualizamos el estado local en React
             setOrders(prevOrders => 
                 prevOrders.map(order => 
@@ -423,6 +531,15 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
                 .eq('id', orderId);
 
             if (error) throw error;
+
+            // --- REPORTE DE VENTAS: Actualizamos al cajero ---
+            const username = await getCurrentUsername();
+            await supabase
+                .from('reporte_ventas')
+                .update({ 
+                    cajero: username || 'Desconocido'
+                })
+                .eq('pedido_id', orderId);
 
             // Actualizamos el estado local de React
             setOrders(prevOrders => 
@@ -612,6 +729,8 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
             },
             auditorias,
             fetchAuditorias,
+            reportes,
+            fetchReportes,
             loading
         }}>
             {children}

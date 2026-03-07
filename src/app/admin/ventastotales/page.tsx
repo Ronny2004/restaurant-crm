@@ -1,10 +1,8 @@
 "use client";
 import { useState, useMemo, useEffect } from "react";
 import { useSupabase } from "@/context/SupabaseProvider";
-import { supabase } from "@/lib/supabaseClient"; 
 import { ChevronLeft, Calendar as CalendarIcon, RefreshCcw, Plus, X, Filter, Download } from "lucide-react";
 import Link from "next/link";
-import * as XLSX from "xlsx";
 
 // Definimos la estructura del nuevo bloque de filtros
 type FilterCategory = 'fecha' | 'estado' | 'monto' | '';
@@ -21,6 +19,8 @@ interface FilterBlock {
     selectedYear: string;
     startDate: string;
     endDate: string;
+    // NUEVO: Agregamos la acción para el estado (mostrar vs ocultar)
+    statusAction: 'include' | 'exclude';
     statusValue: StatusFilterType;
     amountType: AmountFilterType;
     amountMin: string;
@@ -28,9 +28,7 @@ interface FilterBlock {
 }
 
 export default function VentasTotalesPage() {
-    const { orders, products } = useSupabase(); 
-    
-    const [canceledOrders, setCanceledOrders] = useState<any[]>([]);
+    const { reportes } = useSupabase(); 
 
     const [filters, setFilters] = useState<FilterBlock[]>([{
         id: Date.now().toString(),
@@ -41,85 +39,34 @@ export default function VentasTotalesPage() {
         selectedYear: new Date().getFullYear().toString(),
         startDate: '',
         endDate: '',
+        statusAction: 'include', // Valor por defecto
         statusValue: 'all',
         amountType: 'all',
         amountMin: '',
         amountMax: ''
     }]);
 
-    useEffect(() => {
-        const fetchCanceledOrders = async () => {
-            if (!products || products.length === 0) return;
-
-            const { data, error } = await supabase
-                .from('auditoria_pedidos')
-                .select('*')
-                .eq('estado_pedido', 'Cancelado / Eliminado'); 
-
-            if (data && !error) {
-                const mappedCanceled = data.map((audit: any) => {
-                    let calcTotal = 0;
-                    
-                    const stringDetalle = audit.pedido_original || ''; 
-                    
-                    if (stringDetalle) {
-                        const regex = /([^,(]+?)\s*\(x(\d+)\)/g;
-                        let match;
-                        while ((match = regex.exec(stringDetalle)) !== null) {
-                            const prodName = match[1].trim();
-                            const qty = parseInt(match[2], 10);
-                            
-                            const prod = products.find((p: any) => 
-                                (p.nombre && p.nombre.toLowerCase() === prodName.toLowerCase()) ||
-                                (p.name && p.name.toLowerCase() === prodName.toLowerCase())
-                            );
-                            
-                            if (prod) {
-                                calcTotal += (prod.price || 0) * qty;
-                            }
-                        }
-                    }
-
-                    return {
-                        id: `audit-${audit.id}`,
-                        created_at: audit.created_at || new Date().toISOString(),
-                        table_number: audit.mesa,
-                        status: 'canceled', 
-                        is_paid: false,
-                        total: calcTotal,
-                        // Asignamos el usuario de la auditoría a la columna cancelado_por
-                        cancelado_por: audit.usuario || 'Desconocido',
-                        mesero: '-',
-                        cocinero: '-',
-                        cajero: '-'
-                    };
-                });
-                setCanceledOrders(mappedCanceled);
-            }
-        };
-
-        fetchCanceledOrders();
-    }, [products]); 
-
-    const allTransactions = useMemo(() => {
-        // Mapeamos las órdenes normales para preparar los campos de los perfiles
-        const mappedOrders = orders.map((o: any) => ({
-            ...o,
-            // Asumimos que los nombres vendrán en estas propiedades
-            mesero: o.mesero || '-',
-            cocinero: o.cocinero || '-',
-            cajero: o.cajero || '-',
-            cancelado_por: '-'
+    const ventas = useMemo(() => {
+        if (!reportes) return [];
+        return reportes.map(r => ({
+            id: r.pedido_id,
+            created_at: r.fecha_hora,
+            table_number: r.mesa,
+            mesero: r.mesero || '-',
+            cocinero: r.cocinero || '-',
+            cajero: r.cajero || '-',
+            cancelado_por: r.cancelado_por || '-',
+            status: r.estado,
+            is_paid: r.cajero !== '-', 
+            total: Number(r.monto) || 0
         }));
-        
-        return [...mappedOrders, ...canceledOrders];
-    }, [orders, canceledOrders]);
+    }, [reportes]);
 
     const availableYears = useMemo(() => {
-        const years = allTransactions.map(o => new Date(o.created_at).getFullYear());
+        const years = ventas.map(o => new Date(o.created_at).getFullYear());
         const uniqueYears = Array.from(new Set(years)).sort((a, b) => b - a);
         return uniqueYears.length > 0 ? uniqueYears : [new Date().getFullYear()];
-    }, [allTransactions]);
+    }, [ventas]);
 
     const traducirEstado = (status: string) => {
         switch(status) {
@@ -132,7 +79,6 @@ export default function VentasTotalesPage() {
         }
     };
 
-    // Funciones para manejar los filtros dinámicos
     const addFilter = () => {
         setFilters([...filters, {
             id: Date.now().toString(),
@@ -143,6 +89,7 @@ export default function VentasTotalesPage() {
             selectedYear: new Date().getFullYear().toString(),
             startDate: '',
             endDate: '',
+            statusAction: 'include', // Valor por defecto en nuevos filtros
             statusValue: 'all',
             amountType: 'all',
             amountMin: '',
@@ -159,13 +106,11 @@ export default function VentasTotalesPage() {
     };
 
     const filteredSales = useMemo(() => {
-        return allTransactions.filter(order => {
+        return ventas.filter(order => {
             
             const orderDate = new Date(order.created_at);
 
-            // Verificamos el pedido contra TODOS los filtros activos (Lógica Acumulativa "AND")
             for (const f of filters) {
-                // Lógica de Fecha
                 if (f.category === 'fecha') {
                     if (f.dateType === 'day' && f.selectedDate) {
                         if (orderDate.toDateString() !== new Date(f.selectedDate + "T00:00:00").toDateString()) return false;
@@ -180,15 +125,24 @@ export default function VentasTotalesPage() {
                         if (orderDate < start || orderDate > end) return false;
                     }
                 } 
-                // Lógica de Estado
+                // NUEVA LÓGICA DE ESTADO: Muestra u Oculta según la acción seleccionada
                 else if (f.category === 'estado') {
-                    if (f.statusValue === 'paid') {
-                        if (!order.is_paid) return false;
-                    } else if (f.statusValue !== 'all') {
-                        if (order.is_paid || order.status !== f.statusValue) return false;
+                    if (f.statusValue !== 'all') {
+                        let matchesStatus = false;
+                        
+                        if (f.statusValue === 'paid') {
+                            matchesStatus = order.is_paid;
+                        } else {
+                            matchesStatus = (!order.is_paid && order.status === f.statusValue);
+                        }
+
+                        if (f.statusAction === 'include' && !matchesStatus) {
+                            return false; // Descartar si solo queremos ver este estado y no coincide
+                        } else if (f.statusAction === 'exclude' && matchesStatus) {
+                            return false; // Descartar si queremos ocultar este estado y sí coincide
+                        }
                     }
                 } 
-                // Lógica de Monto
                 else if (f.category === 'monto') {
                     if (f.amountType === 'mayor') {
                         if (order.total <= 15) return false;
@@ -203,53 +157,95 @@ export default function VentasTotalesPage() {
             }
             return true; 
         });
-    }, [allTransactions, filters]); 
+    }, [ventas, filters]); 
 
     const totalCalculado = filteredSales.reduce((acc, curr) => acc + curr.total, 0);
 
-    const handleExportExcel = () => {
+    const handleExportExcel = async () => {
+
         if (filteredSales.length === 0) return;
 
-        const dataToExport = filteredSales.map(sale => ({
-            "Fecha y Hora": new Date(sale.created_at).toLocaleString(),
-            "Mesa": `Mesa ${sale.table_number}`,
-            "Mesero": sale.mesero,
-            "Cocinero": sale.cocinero,
-            "Cajero": sale.cajero,
-            "Cancelado Por": sale.cancelado_por,
-            "Estado": sale.is_paid ? "Pagado" : traducirEstado(sale.status),
-            "Total ($)": sale.total
-        }));
+        const ExcelJS = (await import("exceljs")).default;
 
-        dataToExport.push({
-            "Fecha y Hora": "TOTAL GENERAL",
-            "Mesa": "",
-            "Mesero": "",
-            "Cocinero": "",
-            "Cajero": "",
-            "Cancelado Por": "",
-            "Estado": "", 
-            "Total ($)": parseFloat(totalCalculado.toFixed(2))
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet("Reporte de Ventas");
+
+        const tableRows = filteredSales.map(sale => [
+            new Date(sale.created_at).toLocaleString(),
+            `Mesa ${sale.table_number}`,
+            sale.mesero,
+            sale.cocinero,
+            sale.cajero,
+            sale.cancelado_por,
+            sale.is_paid ? "Pagado" : traducirEstado(sale.status),
+            sale.total
+        ]);
+
+        worksheet.addTable({
+            name: 'TablaDeVentas',
+            ref: 'A1', 
+            headerRow: true,
+            totalsRow: false, 
+            style: {
+                theme: 'TableStyleMedium2', 
+                showRowStripes: true,
+            },
+            columns: [
+                { name: 'Fecha y Hora', filterButton: true },
+                { name: 'Mesa', filterButton: true },
+                { name: 'Mesero', filterButton: true },
+                { name: 'Cocinero', filterButton: true },
+                { name: 'Cajero', filterButton: true },
+                { name: 'Cancelado Por', filterButton: true },
+                { name: 'Estado', filterButton: true },
+                { name: 'Total ($)', filterButton: true }
+            ],
+            rows: tableRows
         });
 
-        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-
-        const columnWidths = [
-            { wch: 22 }, // Fecha
-            { wch: 12 }, // Mesa
-            { wch: 15 }, // Mesero
-            { wch: 15 }, // Cocinero
-            { wch: 15 }, // Cajero
-            { wch: 18 }, // Cancelado Por
-            { wch: 15 }, // Estado
-            { wch: 12 }  // Total
+        worksheet.columns = [
+            { width: 22 }, // Fecha
+            { width: 12 }, // Mesa
+            { width: 15 }, // Mesero
+            { width: 15 }, // Cocinero
+            { width: 15 }, // Cajero
+            { width: 18 }, // Cancelado Por
+            { width: 15 }, // Estado
+            { width: 12 }  // Total
         ];
-        worksheet['!cols'] = columnWidths;
 
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Reporte de Ventas");
+        worksheet.getColumn(8).numFmt = '"$"#,##0.00';
+        worksheet.views = [{ state: "frozen", ySplit: 1 }];
 
-        XLSX.writeFile(workbook, "Ventas Totales - Reporte LDM.xlsx");
+        const totalRowNumber = tableRows.length + 2; 
+        const totalRow = worksheet.getRow(totalRowNumber);
+        
+        totalRow.getCell(1).value = "TOTAL GENERAL";
+        totalRow.getCell(8).value = parseFloat(totalCalculado.toFixed(2));
+        
+        totalRow.font = { bold: true };
+        totalRow.eachCell((cell) => {
+            cell.fill = {
+                type: "pattern",
+                pattern: "solid",
+                fgColor: { argb: "E7E6E6" } 
+            };
+            cell.border = {
+                top: { style: "medium" },
+                bottom: { style: "medium" }
+            };
+        });
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], {
+            type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        });
+
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "Ventas Totales - Reporte LDM.xlsx";
+        a.click();
     };
 
     return (
@@ -316,6 +312,18 @@ export default function VentasTotalesPage() {
                                 </div>
                             )}
 
+                            {/* NUEVO UI DE ESTADO: Agregamos el selector intermedio */}
+                            {f.category === 'estado' && (
+                                <select 
+                                    value={f.statusAction} 
+                                    onChange={(e) => updateFilter(f.id, 'statusAction', e.target.value)}
+                                    className="btn btn-secondary"
+                                    style={{ background: "rgba(14, 26, 94, 0.66)", padding: "0.5rem", border: "1px solid var(--border)", fontSize: "0.9rem", color: "white" }}
+                                >
+                                    <option value="include">Solo Mostrar...</option>
+                                    <option value="exclude">Ocultar (Quitar)...</option>
+                                </select>
+                            )}
                             {f.category === 'estado' && (
                                 <select 
                                     value={f.statusValue} 
@@ -332,7 +340,6 @@ export default function VentasTotalesPage() {
                                     <option value="canceled">Cancelado/Eliminado</option> 
                                 </select>
                             )}
-                            {f.category === 'estado' && <div />} 
 
                             {f.category === 'monto' && (
                                 <select 
@@ -450,8 +457,6 @@ export default function VentasTotalesPage() {
                                     <tr key={sale.id} style={{ borderBottom: "1px solid var(--border)" }}>
                                         <td style={{ padding: "0.75rem 1rem", fontSize: "0.95rem" }}>{new Date(sale.created_at).toLocaleString()}</td>
                                         <td style={{ padding: "0.75rem 1rem", fontSize: "0.95rem" }}>Mesa {sale.table_number}</td>
-                                        
-                                        {/* NUEVAS COLUMNAS DE USUARIOS */}
                                         <td style={{ padding: "0.75rem 1rem", fontSize: "0.95rem" }}>{sale.mesero}</td>
                                         <td style={{ padding: "0.75rem 1rem", fontSize: "0.95rem" }}>{sale.cocinero}</td>
                                         <td style={{ padding: "0.75rem 1rem", fontSize: "0.95rem" }}>{sale.cajero}</td>

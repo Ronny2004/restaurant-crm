@@ -62,7 +62,7 @@ export default function MeseroPage() {
             const existing = prev.find((p) => p.product.id === product.id);
             if (existing) {
                 if (existing.quantity >= product.stock) {
-                    toast(`Solo hay ${product.stock} unidades disponibles`, "error");
+                    toast(`Sin stock: ${product.name}`, "error");
                     return prev;
                 }
                 return prev.map((p) =>
@@ -115,7 +115,7 @@ export default function MeseroPage() {
             // Si intenta sumar (+), validamos contra el límite real
             if (delta > 0 && product && existing) {
                 if (existing.quantity >= maxAllowed) {
-                    toast(`Producto sin stock`, "error");
+                    toast(`Sin stock: ${product.name}`, "error");
                     return prev; 
                 }
             }
@@ -152,7 +152,7 @@ export default function MeseroPage() {
             if (existing) {
                 // Comparamos contra el nuevo límite real
                 if (existing.quantity >= maxAllowed) {
-                    toast(`Producto sin stock`, "error");
+                    toast(`Sin stock: ${product.name}`, "error");
                     return prev;
                 }
                 return prev.map(p => (p.product?.id || p.product_id) === product.id ? { ...p, quantity: p.quantity + 1 } : p);
