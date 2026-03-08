@@ -24,26 +24,71 @@ export type OrderItem = {
 export type Order = {
     id: string;
     table_number: string;
-    status: "pending" | "preparing" | "ready" | "served" | "paid";
+    status: "pending" | "preparing" | "served" | "ready";
+    status_id: number;
+    status_description?: string;
+    is_paid: boolean;
     total: number;
     created_at: string;
     items: OrderItem[];
 };
 
+export type PaymentType = {
+    id: number;
+    type: string;
+    description: string;
+};
+
+export type AuditItem = {
+    product_name: string;
+    quantity: number;
+};
+
+export type Auditoria_Pedidos = {
+    id: string;
+    fecha_hora: string; // En TypeScript manejamos las fechas de Supabase como string
+    usuario: string;
+    mesa: string;
+    pedido_id: string;
+    estado_pedido: "Editado" | "Cancelado/Eliminado"; // Asegúrate de que coincida sin espacios extra si así está en tu BD
+    pedido_original: string;
+    pedido_actualizado: string;
+    itemsAudit?: AuditItem[]; // Opcional, por si decides parsearlo aquí o en el componente
+};
+
+export type ReporteVenta = {
+    pedido_id: string;
+    fecha_hora: string;
+    mesa: string; 
+    mesero: string;
+    cocinero: string;
+    cajero: string;
+    cancelado_por: string;
+    estado: string;
+    monto: number;
+};
+
 type SupabaseContextType = {
     products: Product[];
     orders: Order[];
+    auditorias: Auditoria_Pedidos[];
+    loading: boolean;
     fetchProducts: () => Promise<void>;
+    createProduct: (product: Omit<Product, "id">, imageFile?: File) => Promise<void>;
+    updateProduct: (id: string, product: Partial<Omit<Product, "id">>, imageFile?: File) => Promise<void>;
+    deleteProduct: (id: string) => Promise<void>;
     fetchOrders: () => Promise<void>;
     createOrder: (table: string, items: { product: Product; quantity: number }[]) => Promise<void>;
     updateOrder: (orderId: string, updates: { items: { product: Product; quantity: number }[]; total: number }) => Promise<void>;
     deleteOrder: (id: string) => Promise<void>;
     updateOrderStatus: (orderId: string, status: Order["status"]) => Promise<void>;
-    createProduct: (product: Omit<Product, "id">, imageFile?: File) => Promise<void>;
-    updateProduct: (id: string, product: Partial<Omit<Product, "id">>, imageFile?: File) => Promise<void>;
-    deleteProduct: (id: string) => Promise<void>;
+    markOrderAsPaid: (orderId: string, paymentMethodId: number) => Promise<void>;
+    paymentTypes: PaymentType[];
+    fetchPaymentTypes: () => Promise<void>;
     getSalesData: (startDate: Date, endDate: Date) => Promise<Order[]>;
-    loading: boolean;
+    fetchAuditorias: () => Promise<void>;
+    reportes: ReporteVenta[];
+    fetchReportes: () => Promise<void>;
 };
 
 const SupabaseContext = createContext<SupabaseContextType | undefined>(undefined);
@@ -51,7 +96,24 @@ const SupabaseContext = createContext<SupabaseContextType | undefined>(undefined
 export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     const [products, setProducts] = useState<Product[]>([]);
     const [orders, setOrders] = useState<Order[]>([]);
+    const [paymentTypes, setPaymentTypes] = useState<PaymentType[]>([]);
     const [loading, setLoading] = useState(true);
+    const [auditorias, setAuditorias] = useState<Auditoria_Pedidos[]>([]);
+    const [reportes, setReportes] = useState<ReporteVenta[]>([]);
+
+    // --- Función Auxiliar para Reporte de Ventas ---
+    const getCurrentUsername = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return null;
+        
+        const { data } = await supabase
+            .from('profiles')
+            .select('username')
+            .eq('id', user.id)
+            .single();
+            
+        return data?.username || 'Usuario Desconocido';
+    };
 
     // Usamos useCallback para que las funciones no cambien en cada render
     const fetchProducts = useCallback(async () => {
@@ -67,11 +129,29 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         if (data) setProducts([...data]);
     }, []);
 
+    const fetchPaymentTypes = useCallback(async () => {
+        try {
+            const { data, error } = await supabase
+                .from('payment_type')
+                .select('*')
+                .order('id', { ascending: true });
+
+            if (error) throw error;
+            setPaymentTypes(data as PaymentType[]);
+        } catch (error) {
+            console.error("Error obteniendo tipos de pago:", error);
+        }
+    }, []);
+
     const fetchOrders = useCallback(async () => {
         const { data, error } = await supabase
             .from("orders")
             .select(`
                 *,
+                status_order (
+                    status,
+                    description
+                ),
                 items:order_items (
                     *,
                     product:products (name)
@@ -86,6 +166,9 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
 
         const formattedOrders = data.map((order: any) => ({
             ...order,
+            // Traducimos la tabla anidada de vuelta a las propiedades que tu UI espera
+            status: order.status_order?.status || "pending",
+            status_description: order.status_order?.description || "",
             items: order.items.map((item: any) => ({
                 ...item,
                 product_name: item.product?.name || "Desconocido"
@@ -95,7 +178,32 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         setOrders(formattedOrders as Order[]);
     }, []);
 
-    // 1. Carga inicial de datos
+    const fetchAuditorias = useCallback(async () => {
+        const { data, error } = await supabase
+            .from("auditoria_pedidos")
+            .select("*")
+            .order('fecha_hora', { ascending: false }); // o created_at, dependiendo de cómo se llame tu columna
+
+        if (error) {
+            console.error("Error al obtener la auditoría:", error);
+            return;
+        }
+        if (data) setAuditorias(data as Auditoria_Pedidos[]);
+    }, []);
+
+    const fetchReportes = useCallback(async () => {
+        const { data, error } = await supabase
+            .from("reporte_ventas")
+            .select("*")
+            .order('fecha_hora', { ascending: false });
+
+        if (error) {
+            console.error("Error al obtener los reportes:", error);
+            return;
+        }
+        if (data) setReportes(data as ReporteVenta[]);
+    }, []);
+
     // 1. Carga inicial de datos
     useEffect(() => {
         // DECLARACIÓN VITAL PARA EVITAR EL ERROR
@@ -107,7 +215,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
             // Solo actualizamos el estado si el componente sigue montado
             if (isMounted) setLoading(true);
             try {
-                await Promise.all([fetchProducts(), fetchOrders()]);
+                await Promise.all([fetchProducts(), fetchOrders(), fetchPaymentTypes(), fetchReportes()]);
             } catch (error) {
                 if (isMounted && retryCount < maxRetries) {
                     retryCount++;
@@ -138,20 +246,29 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
                     fetchProducts();
                 }
             )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'reporte_ventas' },
+                () => {
+                    console.log("Cambio en reporte_ventas detectado");
+                    fetchReportes();
+                }
+            )
             .subscribe((status) => {
                 if (status === 'SUBSCRIBED') {
                     console.log("Conectado a Realtime correctamente");
                 }
             });
 
-
         return () => {
             // Ahora la variable sí existe en este ámbito
             isMounted = false;
             supabase.removeChannel(channel);
         };
-    }, [fetchProducts, fetchOrders]);
+
+    }, [fetchProducts, fetchOrders, fetchPaymentTypes]);
     // }, []);
+
 
     // --- Funciones CRUD (Escritura) ---
     const createOrder = async (table: string, items: { product: Product; quantity: number }[]) => {
@@ -177,62 +294,78 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
 
             if (rpcError) throw rpcError;
 
+            // --- REPORTE DE VENTAS: Insertamos la nueva orden ---
+            if (orderId) {
+                const username = await getCurrentUsername();
+                await supabase.from('reporte_ventas').insert({
+                    pedido_id: orderId,
+                    mesa: table,
+                    mesero: username || 'Desconocido',
+                    estado: 'pending',
+                    monto: total
+                });
+            }
+
         } catch (error: any) {
             console.error("Error detallado en createOrder:", error.message);
             throw error;
         }
     };
-    const updateOrderStatus = async (orderId: string, status: Order["status"]) => {
-        const { error } = await supabase.from("orders").update({ status }).eq("id", orderId);
-        if (error) throw error;
-    };
 
     const updateOrder = async (orderId: string, updates: { items: any[]; total: number }) => {
         try {
             // --- 1. AUDITORÍA: Recopilar datos ANTES de modificar ---
-            // A. Obtener el número de mesa
             const { data: orderData } = await supabase
                 .from('orders')
-                .select('table_number')
+                .select('table_number, created_by')
                 .eq('id', orderId)
                 .single();
             const tableNumber = orderData?.table_number || 'Desconocida';
 
-            // B. Obtener los nombres y cantidades de los items viejos
+            const { data: userData } = await supabase.auth.getUser();
+            const { data: profileData } = await supabase
+                .from('profiles')
+                .select('username')
+                .eq('id', userData.user?.id)
+                .single();
+            const userName = profileData?.username || 'Usuario desconocido';
+
             const { data: oldItemsData } = await supabase
                 .from('order_items')
                 .select('product_id, quantity, products(name)')
                 .eq('order_id', orderId);
             
-            // C. Generar el mapa comparativo (Diff)
-            const auditMap = new Map<string, { producto: string, ant: number, nue: number }>();
-
-            if (oldItemsData) {
-                oldItemsData.forEach((item: any) => {
-                    auditMap.set(item.product_id, { producto: item.products?.name || 'Producto', ant: item.quantity, nue: 0 });
-                });
+            let pedidoOriginal = '';
+            if (oldItemsData && oldItemsData.length > 0) {
+                pedidoOriginal = oldItemsData.map((item: any) => 
+                    `${item.products?.name || 'Producto'} (x${item.quantity})`
+                ).join(', ');
+            } else {
+                pedidoOriginal = 'Sin items originales';
             }
 
-            updates.items.forEach((item: any) => {
-                const pId = item.product?.id || item.product_id;
+            const pedidoActualizado = updates.items.map((item: any) => {
                 const prodName = item.product?.name || item.product_name || 'Producto';
-                if (auditMap.has(pId)) {
-                    auditMap.get(pId)!.nue = item.quantity;
-                } else {
-                    auditMap.set(pId, { producto: prodName, ant: 0, nue: item.quantity });
-                }
-            });
-
-            const detallesJson = Array.from(auditMap.values()).filter(d => d.ant !== d.nue);
+                return `${prodName} (x${item.quantity})`;
+            }).join(', ');
             // --------------------------------------------------------
 
-            // 2. Actualizamos el total de la orden
+            // 2. Actualizamos el total de la orden en la tabla principal
             const { error: orderError } = await supabase
                 .from('orders')
                 .update({ total: updates.total })
                 .eq('id', orderId);
             
             if (orderError) throw orderError;
+
+            // --- 2.5 NUEVO: ACTUALIZAMOS EL MONTO EN REPORTE DE VENTAS ---
+            const { error: reporteError } = await supabase
+                .from('reporte_ventas')
+                .update({ monto: updates.total })
+                .eq('pedido_id', orderId);
+                
+            if (reporteError) console.error("Error al actualizar monto en reporte_ventas:", reporteError.message);
+            // -------------------------------------------------------------
 
             // 3. Borramos los items antiguos
             const { error: deleteError } = await supabase
@@ -245,9 +378,9 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
             // 4. Mapeamos los items nuevos
             const itemsToInsert = updates.items.map((item: any) => ({
                 order_id: orderId,
-                product_id: item.product?.id || item.product_id, // Soporta datos locales o de DB
+                product_id: item.product?.id || item.product_id,
                 quantity: item.quantity,
-                price: item.price || item.product?.price || 0    // Soporta datos locales o de DB
+                price: item.price || item.product?.price || 0
             }));
 
             // 5. Insertamos los items procesados
@@ -259,13 +392,41 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
                 if (insertError) throw insertError;
             }
 
-            // --- 6. AUDITORÍA: Guardar el registro en la nueva tabla ---
-            if (detallesJson.length > 0) {
-                await supabase.rpc('auditar_edicion_pedido', {
-                    p_pedido_id: orderId,
-                    p_mesa: tableNumber,
-                    p_detalles: detallesJson // Enviamos el JSON limpio a la tabla hija
-                });
+            // --- 6. AUDITORÍA: EVITAR FILAS DUPLICADAS ---
+            if (pedidoOriginal !== pedidoActualizado) {
+                const { data: existingAudit } = await supabase
+                    .from('auditoria_pedidos')
+                    .select('id')
+                    .eq('pedido_id', orderId)
+                    .maybeSingle();
+
+                if (existingAudit) {
+                    const { error: auditError } = await supabase
+                        .from('auditoria_pedidos')
+                        .update({
+                            usuario: userName,
+                            estado_pedido: 'Editado',
+                            pedido_original: pedidoOriginal,
+                            pedido_actualizado: pedidoActualizado,
+                            fecha_hora: new Date().toISOString()
+                        })
+                        .eq('id', existingAudit.id);
+                    
+                    if (auditError) console.error("Error al actualizar la auditoría:", auditError.message);
+                } else {
+                    const { error: auditError } = await supabase
+                        .from('auditoria_pedidos')
+                        .insert({
+                            pedido_id: orderId,
+                            mesa: tableNumber,
+                            usuario: userName,
+                            estado_pedido: 'Editado',
+                            pedido_original: pedidoOriginal,
+                            pedido_actualizado: pedidoActualizado
+                        });
+                    
+                    if (auditError) console.error("Error al guardar la auditoría:", auditError.message);
+                }
             }
             // -----------------------------------------------------------
 
@@ -280,16 +441,9 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         try {
             console.log("1. Iniciando borrado para la orden ID:", id);
 
-            // Borramos los items vinculados
-            const { error: itemsError } = await supabase
-                .from("order_items")
-                .delete()
-                .eq("order_id", id);
+            // Obtenemos el usuario antes de borrar
+            const username = await getCurrentUsername();
 
-            if (itemsError) throw itemsError;
-            console.log("2. Items de la orden borrados con éxito");
-
-            // Borramos la orden principal obligando a Supabase a devolver lo que borró (.select)
             const { data: deletedData, error: deleteError } = await supabase
                 .from("orders")
                 .delete()
@@ -297,19 +451,107 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
                 .select();
 
             if (deleteError) throw deleteError;
-            console.log("3. Respuesta de Supabase al borrar la orden:", deletedData);
+            console.log("2. Respuesta de Supabase al borrar la orden:", deletedData);
 
-            // Si deletedData está vacío, Supabase nos ignoró
             if (!deletedData || deletedData.length === 0) {
                 throw new Error(`Supabase no eliminó la orden ${id}. Verifica RLS o si el ID es correcto.`);
             }
 
-            // 4. Si llegamos aquí, sí se borró de la base de datos de verdad
+            // --- REPORTE DE VENTAS: Actualizamos el estado a cancelado ---
+            await supabase
+                .from('reporte_ventas')
+                .update({ 
+                    estado: 'canceled',
+                    cancelado_por: username || 'Desconocido'
+                })
+                .eq('pedido_id', id);
+
+            // Actualizamos el estado local en React
             setOrders(prev => prev.filter(o => o.id !== id));
-            console.log("4. Estado local actualizado");
+            console.log("3. Estado local actualizado");
 
         } catch (error: any) {
             console.error("🚨 Error detallado en deleteOrder:", error.message);
+            throw error;
+        }
+    };
+
+    // Diccionario de traducción de texto a ID de la base de datos
+    const STATUS_TO_ID: Record<string, number> = {
+        'pending': 1,
+        'preparing': 2,
+        'served': 3,
+        'ready': 4
+    };
+
+    const updateOrderStatus = async (orderId: string, newStatus: Order["status"]) => {
+        try {
+            const newStatusId = STATUS_TO_ID[newStatus];
+
+            // Actualizamos usando el nuevo ID
+            const { error } = await supabase
+                .from("orders")
+                .update({ status_id: newStatusId })
+                .eq("id", orderId);
+
+            if (error) throw error;
+
+            // --- REPORTE DE VENTAS: Actualizamos el estado y el cocinero si aplica ---
+            const username = await getCurrentUsername();
+            let reporteUpdates: any = { estado: newStatus };
+            
+            if (newStatus === 'preparing' || newStatus === 'served') {
+                reporteUpdates.cocinero = username || 'Desconocido';
+            }
+
+            await supabase
+                .from('reporte_ventas')
+                .update(reporteUpdates)
+                .eq('pedido_id', orderId);
+
+            // Actualizamos el estado local en React
+            setOrders(prevOrders => 
+                prevOrders.map(order => 
+                    order.id === orderId 
+                        ? { ...order, status: newStatus, status_id: newStatusId } 
+                        : order
+                )
+            );
+        } catch (error) {
+            console.error("Error al actualizar el estado de la orden:", error);
+            throw error;
+        }
+    };
+
+    const markOrderAsPaid = async (orderId: string, paymentMethodId: number) => {
+        try {
+            const { error } = await supabase
+                .from('orders')
+                .update({ 
+                    is_paid: true,
+                    payment_type_id: paymentMethodId
+                })
+                .eq('id', orderId);
+
+            if (error) throw error;
+
+            // --- REPORTE DE VENTAS: Actualizamos al cajero ---
+            const username = await getCurrentUsername();
+            await supabase
+                .from('reporte_ventas')
+                .update({ 
+                    cajero: username || 'Desconocido'
+                })
+                .eq('pedido_id', orderId);
+
+            // Actualizamos el estado local de React
+            setOrders(prevOrders => 
+                prevOrders.map(order => 
+                    order.id === orderId ? { ...order, is_paid: true } : order
+                )
+            );
+        } catch (error) {
+            console.error("Error al marcar como pagado:", error);
             throw error;
         }
     };
@@ -464,16 +706,19 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
     return (
         <SupabaseContext.Provider value={{
             products,
-            orders,
             fetchProducts,
+            createProduct,
+            updateProduct,
+            deleteProduct,
+            orders,
             fetchOrders,
             createOrder,
             updateOrder,
             deleteOrder,
             updateOrderStatus,
-            createProduct,
-            updateProduct,
-            deleteProduct,
+            markOrderAsPaid,
+            paymentTypes,
+            fetchPaymentTypes,
             getSalesData: async (start, end) => {
                 const { data, error } = await supabase
                     .from("orders")
@@ -485,6 +730,10 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
                 if (error) throw error;
                 return data as Order[];
             },
+            auditorias,
+            fetchAuditorias,
+            reportes,
+            fetchReportes,
             loading
         }}>
             {children}
