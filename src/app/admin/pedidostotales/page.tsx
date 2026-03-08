@@ -108,17 +108,17 @@ export default function PedidosTotalesPage() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "1.5rem" }}>
                 {filteredOrders.length > 0 ? (
                     filteredOrders.map(order => (
-                        <div key={order.id} className="glass-panel" style={{ padding: "1.5rem", borderLeft: `4px solid ${order.status === 'paid' ? 'var(--success)' : 'var(--primary)'}` }}>
+                        <div key={order.id} className="glass-panel" style={{ padding: "1.5rem", borderLeft: `4px solid ${order.is_paid ? 'var(--success)' : 'var(--primary)'}` }}>
                             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1rem" }}>
                                 <h3 style={{ margin: 0 }}>Mesa {order.table_number}</h3>
                                 <span style={{ 
                                     padding: "0.2rem 0.6rem", 
                                     borderRadius: "20px", 
                                     fontSize: "0.7rem", 
-                                    background: order.status === 'paid' ? 'rgba(34,197,94,0.2)' : 'rgba(59,130,246,0.2)',
-                                    color: order.status === 'paid' ? '#4ade80' : '#60a5fa'
+                                    background: order.is_paid ? 'rgba(34,197,94,0.2)' : 'rgba(59,130,246,0.2)',
+                                    color: order.is_paid ? '#4ade80' : '#60a5fa'
                                 }}>
-                                    {order.status.toUpperCase()}
+                                    {order.is_paid ? 'Pagado' : 'Pendiente'}
                                 </span>
                             </div>
 
