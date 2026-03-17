@@ -5,10 +5,11 @@ import { ChevronLeft, Calendar as CalendarIcon, RefreshCcw, Plus, X, Filter, Dow
 import Link from "next/link";
 
 // Definimos la estructura del nuevo bloque de filtros
-type FilterCategory = 'fecha' | 'estado' | 'monto' | '';
+type FilterCategory = 'fecha' | 'estado' | 'monto' | 'usuario' | 'tipo_pago' | '';;
 type DateFilterType = 'day' | 'month' | 'year' | 'range' | 'all';
 type StatusFilterType = 'pending' | 'preparing' | 'served' | 'ready' | 'paid' | 'canceled' | 'all'; 
 type AmountFilterType = 'mayor' | 'menor' | 'rango' | 'all';
+type UserRoleFilterType = 'any' | 'mesero' | 'cocinero' | 'cajero' | 'cancelado_por';
 
 interface FilterBlock {
     id: string;
@@ -19,13 +20,88 @@ interface FilterBlock {
     selectedYear: string;
     startDate: string;
     endDate: string;
-    // NUEVO: Agregamos la acción para el estado (mostrar vs ocultar)
     statusAction: 'include' | 'exclude';
-    statusValue: StatusFilterType;
+    statusValues: string[];
     amountType: AmountFilterType;
     amountMin: string;
     amountMax: string;
+    userRoleType: UserRoleFilterType;
+    userNameInput: string;
+    paymentValues: string[];
 }
+
+// Componente Multi-Select nativo (CSS blindado)
+const MultiSelectDropdown = ({ 
+    options, 
+    selectedValues, 
+    onChange, 
+    placeholder 
+}: { 
+    options: { label: string, value: string }[], 
+    selectedValues: string[], 
+    onChange: (vals: string[]) => void, 
+    placeholder: string 
+}) => {
+    const [isOpen, setIsOpen] = useState(false);
+
+    const toggleOption = (val: string) => {
+        if (selectedValues.includes(val)) {
+            onChange(selectedValues.filter(v => v !== val));
+        } else {
+            onChange([...selectedValues, val]);
+        }
+    };
+
+    return (
+        <div style={{ position: 'relative', width: '100%' }}>
+            <div 
+                onClick={() => setIsOpen(!isOpen)} 
+                className="btn btn-secondary" 
+                style={{ background: "rgba(14, 26, 94, 0.66)", padding: "0.5rem", border: "1px solid var(--border)", fontSize: "0.9rem", color: "white", display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', height: '100%' }}
+            >
+                <span>{selectedValues.length === 0 ? placeholder : `${selectedValues.length} seleccionados`}</span>
+                <span style={{ fontSize: '0.8rem' }}>▼</span>
+            </div>
+            
+            {isOpen && (
+                <div style={{ 
+                    position: 'absolute', top: '105%', left: 0, zIndex: 9999, 
+                    background: '#0f172a', border: "1px solid var(--border)", 
+                    borderRadius: "8px", padding: "0.5rem", width: '100%', 
+                    maxHeight: "250px", overflowY: "auto", 
+                    boxShadow: "0 10px 25px rgba(0, 0, 0, 0.8)",
+                    display: 'flex', flexDirection: 'column' /* <-- LA CLAVE PARA QUE NO SE SEPAREN */
+                }}>
+                    {options.map(opt => (
+                        <label 
+                            key={opt.value} 
+                            style={{ 
+                                display: 'flex', alignItems: 'center', justifyContent: 'flex-start', 
+                                gap: '10px', padding: '8px', cursor: 'pointer', color: 'white', 
+                                borderRadius: '4px', margin: 0, width: '100%', boxSizing: 'border-box'
+                            }} 
+                            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'} 
+                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                        >
+                            <input 
+                                type="checkbox" 
+                                checked={selectedValues.includes(opt.value)} 
+                                onChange={() => toggleOption(opt.value)} 
+                                style={{ margin: 0, cursor: 'pointer', width: '16px', height: '16px' }}
+                            />
+                            <span style={{ fontSize: '0.9rem', textAlign: 'left' }}>
+                                {opt.label}
+                            </span>
+                        </label>
+                    ))}
+                </div>
+            )}
+            
+            {/* Overlay invisible para cerrar al hacer clic afuera */}
+            {isOpen && <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9998 }} onClick={() => setIsOpen(false)} />}
+        </div>
+    );
+};
 
 export default function VentasTotalesPage() {
     const { reportes } = useSupabase(); 
@@ -39,11 +115,14 @@ export default function VentasTotalesPage() {
         selectedYear: new Date().getFullYear().toString(),
         startDate: '',
         endDate: '',
-        statusAction: 'include', // Valor por defecto
-        statusValue: 'all',
+        statusAction: 'include',
+        statusValues: [],
         amountType: 'all',
         amountMin: '',
-        amountMax: ''
+        amountMax: '',
+        userRoleType: 'any',
+        userNameInput: '',
+        paymentValues: []
     }]);
 
     const ventas = useMemo(() => {
@@ -58,7 +137,8 @@ export default function VentasTotalesPage() {
             cancelado_por: r.cancelado_por || '-',
             status: r.estado,
             is_paid: r.cajero !== '-', 
-            total: Number(r.monto) || 0
+            total: Number(r.monto) || 0,
+            tipo_pago: r.tipo_pago || '-'
         }));
     }, [reportes]);
 
@@ -89,11 +169,14 @@ export default function VentasTotalesPage() {
             selectedYear: new Date().getFullYear().toString(),
             startDate: '',
             endDate: '',
-            statusAction: 'include', // Valor por defecto en nuevos filtros
-            statusValue: 'all',
+            statusAction: 'include', 
+            statusValues: [],
             amountType: 'all',
             amountMin: '',
-            amountMax: ''
+            amountMax: '',
+            userRoleType: 'any',
+            userNameInput: '',
+            paymentValues: []
         }]);
     };
 
@@ -125,24 +208,19 @@ export default function VentasTotalesPage() {
                         if (orderDate < start || orderDate > end) return false;
                     }
                 } 
-                // NUEVA LÓGICA DE ESTADO: Muestra u Oculta según la acción seleccionada
                 else if (f.category === 'estado') {
-                    if (f.statusValue !== 'all') {
-                        let matchesStatus = false;
-                        
-                        if (f.statusValue === 'paid') {
-                            matchesStatus = order.is_paid;
-                        } else {
-                            matchesStatus = (!order.is_paid && order.status === f.statusValue);
-                        }
+                    if (f.statusValues.length > 0) {
+                        // Determinamos el estado real para el filtro
+                        const currentStatus = order.is_paid ? 'paid' : order.status;
+                        const isSelected = f.statusValues.includes(currentStatus);
 
-                        if (f.statusAction === 'include' && !matchesStatus) {
-                            return false; // Descartar si solo queremos ver este estado y no coincide
-                        } else if (f.statusAction === 'exclude' && matchesStatus) {
-                            return false; // Descartar si queremos ocultar este estado y sí coincide
+                        if (f.statusAction === 'include' && !isSelected) {
+                            return false; // Si elegimos "Mostrar" y no está marcado, lo ocultamos
+                        } else if (f.statusAction === 'exclude' && isSelected) {
+                            return false; // Si elegimos "Ocultar" y sí está marcado, lo ocultamos
                         }
                     }
-                } 
+                }
                 else if (f.category === 'monto') {
                     if (f.amountType === 'mayor') {
                         if (order.total <= 15) return false;
@@ -152,6 +230,31 @@ export default function VentasTotalesPage() {
                         const min = parseFloat(f.amountMin) || 0;
                         const max = parseFloat(f.amountMax) || Infinity;
                         if (order.total < min || order.total > max) return false;
+                    }
+                }
+                else if (f.category === 'usuario') {
+                    if (f.userNameInput.trim() !== '') {
+                        const searchTerm = f.userNameInput.toLowerCase().trim();
+                        
+                        if (f.userRoleType === 'any') {
+                            // Busca en todas las columnas de usuarios
+                            const matchMesero = order.mesero.toLowerCase().includes(searchTerm);
+                            const matchCocinero = order.cocinero.toLowerCase().includes(searchTerm);
+                            const matchCajero = order.cajero.toLowerCase().includes(searchTerm);
+                            const matchCancelado = order.cancelado_por.toLowerCase().includes(searchTerm);
+                            
+                            if (!matchMesero && !matchCocinero && !matchCajero && !matchCancelado) return false;
+                        } else {
+                            // Busca en la columna específica seleccionada
+                            const targetField = String(order[f.userRoleType] || '').toLowerCase();
+                            if (!targetField.includes(searchTerm)) return false;
+                        }
+                    }
+                }
+                else if (f.category === 'tipo_pago') {
+                    if (f.paymentValues.length > 0) {
+                        const tipoPago = (order.tipo_pago || '-').toLowerCase();
+                        if (!f.paymentValues.includes(tipoPago)) return false;
                     }
                 }
             }
@@ -178,6 +281,7 @@ export default function VentasTotalesPage() {
             sale.cajero,
             sale.cancelado_por,
             sale.is_paid ? "Pagado" : traducirEstado(sale.status),
+            sale.tipo_pago,
             sale.total
         ]);
 
@@ -198,6 +302,7 @@ export default function VentasTotalesPage() {
                 { name: 'Cajero', filterButton: true },
                 { name: 'Cancelado Por', filterButton: true },
                 { name: 'Estado', filterButton: true },
+                { name: 'Tipo Pago', filterButton: true }, // <-- NUEVO
                 { name: 'Total ($)', filterButton: true }
             ],
             rows: tableRows
@@ -211,17 +316,18 @@ export default function VentasTotalesPage() {
             { width: 15 }, // Cajero
             { width: 18 }, // Cancelado Por
             { width: 15 }, // Estado
+            { width: 15 }, // Tipo Pago
             { width: 12 }  // Total
         ];
 
-        worksheet.getColumn(8).numFmt = '"$"#,##0.00';
+        worksheet.getColumn(9).numFmt = '"$"#,##0.00';
         worksheet.views = [{ state: "frozen", ySplit: 1 }];
 
         const totalRowNumber = tableRows.length + 2; 
         const totalRow = worksheet.getRow(totalRowNumber);
         
         totalRow.getCell(1).value = "TOTAL GENERAL";
-        totalRow.getCell(8).value = parseFloat(totalCalculado.toFixed(2));
+        totalRow.getCell(9).value = parseFloat(totalCalculado.toFixed(2));
         
         totalRow.font = { bold: true };
         totalRow.eachCell((cell) => {
@@ -257,7 +363,7 @@ export default function VentasTotalesPage() {
                 <h1>Historial de Ventas</h1>
             </header>
 
-            <div className="glass-panel" style={{ padding: "0.75rem", marginBottom: "1.5rem", borderRadius: "12px" }}>
+            <div className="glass-panel" style={{ padding: "0.75rem", marginBottom: "1.5rem", borderRadius: "12px", position: "relative", zIndex: 20 }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
                     
                     <h3 style={{ display: "flex", alignItems: "center", gap: "0.5rem", margin: "0.5rem 0", fontSize: "1.1rem" }}>
@@ -277,8 +383,11 @@ export default function VentasTotalesPage() {
                                 <option value="fecha">Fecha/s</option>
                                 <option value="estado">Estado</option>
                                 <option value="monto">Monto</option>
+                                <option value="tipo_pago">Tipo de Pago</option>
+                                <option value="usuario">Usuario</option>
                             </select>
 
+                            {/* SELECTORES DE FECHA */}
                             {f.category === 'fecha' && (
                                 <select 
                                     value={f.dateType} 
@@ -312,7 +421,7 @@ export default function VentasTotalesPage() {
                                 </div>
                             )}
 
-                            {/* NUEVO UI DE ESTADO: Agregamos el selector intermedio */}
+                            {/* SELECTORES DE ESTADO */}
                             {f.category === 'estado' && (
                                 <select 
                                     value={f.statusAction} 
@@ -320,27 +429,27 @@ export default function VentasTotalesPage() {
                                     className="btn btn-secondary"
                                     style={{ background: "rgba(14, 26, 94, 0.66)", padding: "0.5rem", border: "1px solid var(--border)", fontSize: "0.9rem", color: "white" }}
                                 >
-                                    <option value="include">Solo Mostrar...</option>
-                                    <option value="exclude">Ocultar (Quitar)...</option>
+                                    <option value="include">Mostrar marcados</option>
+                                    <option value="exclude">Ocultar marcados</option>
                                 </select>
                             )}
                             {f.category === 'estado' && (
-                                <select 
-                                    value={f.statusValue} 
-                                    onChange={(e) => updateFilter(f.id, 'statusValue', e.target.value)}
-                                    className="btn btn-secondary"
-                                    style={{ background: "rgba(14, 26, 94, 0.66)", padding: "0.5rem", border: "1px solid var(--border)", fontSize: "0.9rem", color: "white" }}
-                                >
-                                    <option value="all">Ver Todos</option>
-                                    <option value="pending">Pendiente</option>
-                                    <option value="preparing">En Cocina</option>
-                                    <option value="served">Sirviendo</option>
-                                    <option value="ready">Servido</option>
-                                    <option value="paid">Pagado</option>
-                                    <option value="canceled">Cancelado/Eliminado</option> 
-                                </select>
+                                <MultiSelectDropdown 
+                                    placeholder="Seleccionar estados..."
+                                    selectedValues={f.statusValues}
+                                    onChange={(vals) => updateFilter(f.id, 'statusValues', vals)}
+                                    options={[
+                                        { label: 'Pendiente', value: 'pending' },
+                                        { label: 'En Cocina', value: 'preparing' },
+                                        { label: 'Sirviendo', value: 'served' },
+                                        { label: 'Servido', value: 'ready' },
+                                        { label: 'Pagado', value: 'paid' },
+                                        { label: 'Cancelado/Eliminado', value: 'canceled' }
+                                    ]}
+                                />
                             )}
 
+                            {/* SELECTORES DE MONTO */}
                             {f.category === 'monto' && (
                                 <select 
                                     value={f.amountType} 
@@ -366,6 +475,49 @@ export default function VentasTotalesPage() {
                                 </div>
                             )}
 
+                            {/* SELECTOR DE USUARIO */}
+                            {f.category === 'usuario' && (
+                                <select 
+                                    value={f.userRoleType} 
+                                    onChange={(e) => updateFilter(f.id, 'userRoleType', e.target.value)}
+                                    className="btn btn-secondary"
+                                    style={{ background: "rgba(14, 26, 94, 0.66)", padding: "0.5rem", border: "1px solid var(--border)", fontSize: "0.9rem", color: "white" }}
+                                >
+                                    <option value="any">Cualquier Rol</option>
+                                    <option value="mesero">Mesero</option>
+                                    <option value="cocinero">Cocinero</option>
+                                    <option value="cajero">Cajero</option>
+                                    <option value="cancelado_por">Cancelado Por</option>
+                                </select>
+                            )}
+                            {f.category === 'usuario' && (
+                                <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", width: "100%" }}>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Escriba el nombre o usuario..." 
+                                        value={f.userNameInput} 
+                                        onChange={(e) => updateFilter(f.id, 'userNameInput', e.target.value)} 
+                                        className="btn btn-secondary i-white" 
+                                        style={{ color: "white", padding: "0.4rem", width: "100%"}} 
+                                    />
+                                </div>
+                            )}
+
+                            {/* SELECTORES DE TIPO DE PAGO */}
+                            {f.category === 'tipo_pago' && (
+                                <MultiSelectDropdown 
+                                    placeholder="Seleccionar tipos..."
+                                    selectedValues={f.paymentValues}
+                                    onChange={(vals) => updateFilter(f.id, 'paymentValues', vals)}
+                                    options={[
+                                        { label: 'Efectivo', value: 'efectivo' },
+                                        { label: 'Transferencia', value: 'transferencia' },
+                                        { label: 'Sin Pagar / Pendiente', value: '-' }
+                                    ]}
+                                />
+                            )}
+                            {f.category === 'tipo_pago' && <div />}
+
                             {f.category === '' && <div />}
                             {f.category === '' && <div />}
 
@@ -382,8 +534,6 @@ export default function VentasTotalesPage() {
                         </div>
                     ))}
 
-                    {/* Botón verde para sumar otro filtro */}
-                    {/* La condición envuelve todo el div. Solo se muestra si hay menos de 3 y NINGUNO está vacío */}
                     {filters.length < 3 && !filters.some(f => f.category === "") && (
                         <div>
                             <button 
@@ -448,6 +598,7 @@ export default function VentasTotalesPage() {
                                 <th style={{ padding: "0.75rem 1rem", color: "white" }}>Cajero</th>
                                 <th style={{ padding: "0.75rem 1rem", color: "white" }}>Cancelado Por</th>
                                 <th style={{ padding: "0.75rem 1rem", color: "white" }}>Estado</th>
+                                <th style={{ padding: "0.75rem 1rem", color: "white" }}>Tipo Pago</th>
                                 <th style={{ padding: "0.75rem 1rem", textAlign: "right", color: "white" }}>Monto</th>
                             </tr>
                         </thead>
@@ -492,6 +643,7 @@ export default function VentasTotalesPage() {
                                                 {sale.is_paid ? "Pagado" : traducirEstado(sale.status)}
                                             </span>
                                         </td>
+                                        <td style={{ padding: "0.75rem 1rem", fontSize: "0.95rem", textTransform: "capitalize" }}>{sale.tipo_pago}</td>
                                         <td style={{ padding: "0.75rem 1rem", textAlign: "right", fontWeight: "bold", fontSize: "1.05rem" }}>${sale.total.toFixed(2)}</td>
                                     </tr>
                                 ))
