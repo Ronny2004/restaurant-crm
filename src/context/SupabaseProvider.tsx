@@ -66,6 +66,7 @@ export type ReporteVenta = {
     cancelado_por: string;
     estado: string;
     monto: number;
+    tipo_pago: string;
 };
 
 type SupabaseContextType = {
@@ -425,6 +426,22 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
                     if (auditError) console.error("Error al guardar la auditoría:", auditError.message);
                 }
             }
+
+            // --- 7. NUEVO: HISTORIAL CONTINUO (Siempre inserta fila nueva) ---
+            if (pedidoOriginal !== pedidoActualizado) {
+                const { error: historyError } = await supabase
+                    .from('historial_auditoria_pedidos')
+                    .insert({
+                        pedido_id: orderId,
+                        mesa: tableNumber,
+                        usuario: userName,
+                        estado_pedido: 'Editado',
+                        pedido_original: pedidoOriginal,
+                        pedido_actualizado: pedidoActualizado
+                    });
+                
+                if (historyError) console.error("Error al guardar el historial detallado:", historyError.message);
+            }
             // -----------------------------------------------------------
 
             await fetchOrders();
@@ -532,16 +549,21 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
 
             if (error) throw error;
 
-            // --- REPORTE DE VENTAS: Actualizamos al cajero ---
+            // --- REPORTE DE VENTAS: Actualizamos cajero y tipo de pago ---
             const username = await getCurrentUsername();
+            
+            // Buscamos el nombre del tipo de pago (efectivo o transferencia)
+            const paymentTypeObj = paymentTypes.find(pt => pt.id === paymentMethodId);
+            const tipoPagoString = paymentTypeObj ? paymentTypeObj.type : '-';
+
             await supabase
                 .from('reporte_ventas')
                 .update({ 
-                    cajero: username || 'Desconocido'
+                    cajero: username || 'Desconocido',
+                    tipo_pago: tipoPagoString 
                 })
                 .eq('pedido_id', orderId);
 
-            // Actualizamos el estado local de React
             setOrders(prevOrders => 
                 prevOrders.map(order => 
                     order.id === orderId ? { ...order, is_paid: true } : order
