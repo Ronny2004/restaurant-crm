@@ -8,6 +8,7 @@ import { Plus, Minus, ShoppingCart, LogOut, Loader2, Edit2, Trash2, Send, X, Che
 import { RoleNavigation } from "@/components/RoleNavigation";
 import { useToast } from "@/context/ToastContext";
 import { Modal } from "@/components/ui/Modal";
+import { Header } from "@/components/Header";
 
 export default function MeseroPage() {
     const { profile, loading: authLoading } = useAuth();
@@ -226,10 +227,7 @@ export default function MeseroPage() {
 
     return (
         <div className="container">
-            <header className="responsive-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem", flexWrap: "wrap", gap: "1rem" }}>
-                <h1>Mesero - Nuevo Pedido</h1>
-                <RoleNavigation />
-            </header>
+            <Header />
 
             <div className="waiter-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "2rem" }}>
                 

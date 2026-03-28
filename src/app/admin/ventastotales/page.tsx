@@ -1,11 +1,12 @@
 "use client";
 import { useState, useMemo, useEffect } from "react";
 import { useSupabase } from "@/context/SupabaseProvider";
-import { ChevronLeft, Calendar as CalendarIcon, RefreshCcw, Plus, X, Filter, Download } from "lucide-react";
+import { ChevronLeft, Calendar as CalendarIcon, RefreshCcw, Plus, X, Filter, Download, ArrowUpDown } from "lucide-react";
 import Link from "next/link";
+import { Header } from "@/components/Header";
 
 // Definimos la estructura del nuevo bloque de filtros
-type FilterCategory = 'fecha' | 'estado' | 'monto' | 'usuario' | 'tipo_pago' | '';;
+type FilterCategory = 'fecha' | 'estado' | 'monto' | 'usuario' | 'tipo_pago' | '';
 type DateFilterType = 'day' | 'month' | 'year' | 'range' | 'all';
 type StatusFilterType = 'pending' | 'preparing' | 'served' | 'ready' | 'paid' | 'canceled' | 'all'; 
 type AmountFilterType = 'mayor' | 'menor' | 'rango' | 'all';
@@ -70,7 +71,7 @@ const MultiSelectDropdown = ({
                     borderRadius: "8px", padding: "0.5rem", width: '100%', 
                     maxHeight: "250px", overflowY: "auto", 
                     boxShadow: "0 10px 25px rgba(0, 0, 0, 0.8)",
-                    display: 'flex', flexDirection: 'column' /* <-- LA CLAVE PARA QUE NO SE SEPAREN */
+                    display: 'flex', flexDirection: 'column'
                 }}>
                     {options.map(opt => (
                         <label 
@@ -124,6 +125,17 @@ export default function VentasTotalesPage() {
         userNameInput: '',
         paymentValues: []
     }]);
+
+    // Estado para ordenamiento, por defecto por fecha ascendente (del más antiguo al más nuevo)
+    const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>({ key: 'created_at', direction: 'desc' });
+
+    const requestSort = (key: string) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
 
     const ventas = useMemo(() => {
         if (!reportes) return [];
@@ -210,14 +222,13 @@ export default function VentasTotalesPage() {
                 } 
                 else if (f.category === 'estado') {
                     if (f.statusValues.length > 0) {
-                        // Determinamos el estado real para el filtro
                         const currentStatus = order.is_paid ? 'paid' : order.status;
                         const isSelected = f.statusValues.includes(currentStatus);
 
                         if (f.statusAction === 'include' && !isSelected) {
-                            return false; // Si elegimos "Mostrar" y no está marcado, lo ocultamos
+                            return false; 
                         } else if (f.statusAction === 'exclude' && isSelected) {
-                            return false; // Si elegimos "Ocultar" y sí está marcado, lo ocultamos
+                            return false; 
                         }
                     }
                 }
@@ -237,7 +248,6 @@ export default function VentasTotalesPage() {
                         const searchTerm = f.userNameInput.toLowerCase().trim();
                         
                         if (f.userRoleType === 'any') {
-                            // Busca en todas las columnas de usuarios
                             const matchMesero = order.mesero.toLowerCase().includes(searchTerm);
                             const matchCocinero = order.cocinero.toLowerCase().includes(searchTerm);
                             const matchCajero = order.cajero.toLowerCase().includes(searchTerm);
@@ -245,7 +255,6 @@ export default function VentasTotalesPage() {
                             
                             if (!matchMesero && !matchCocinero && !matchCajero && !matchCancelado) return false;
                         } else {
-                            // Busca en la columna específica seleccionada
                             const targetField = String(order[f.userRoleType] || '').toLowerCase();
                             if (!targetField.includes(searchTerm)) return false;
                         }
@@ -262,18 +271,36 @@ export default function VentasTotalesPage() {
         });
     }, [ventas, filters]); 
 
-    const totalCalculado = filteredSales.reduce((acc, curr) => acc + curr.total, 0);
+    // Lista ordenada (Asegurándonos de que esté debajo de filteredSales para que funcione correctamente)
+    const sortedSales = useMemo(() => {
+        let sortableItems = [...filteredSales];
+        
+        if (sortConfig !== null) {
+            sortableItems.sort((a: any, b: any) => {
+                if (a[sortConfig.key] < b[sortConfig.key]) {
+                    return sortConfig.direction === 'asc' ? -1 : 1;
+                }
+                if (a[sortConfig.key] > b[sortConfig.key]) {
+                    return sortConfig.direction === 'asc' ? 1 : -1;
+                }
+                return 0;
+            });
+        }
+        return sortableItems;
+    }, [filteredSales, sortConfig]);
+
+    const totalCalculado = sortedSales.reduce((acc, curr) => acc + curr.total, 0);
 
     const handleExportExcel = async () => {
 
-        if (filteredSales.length === 0) return;
+        if (sortedSales.length === 0) return;
 
         const ExcelJS = (await import("exceljs")).default;
 
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet("Reporte de Ventas");
 
-        const tableRows = filteredSales.map(sale => [
+        const tableRows = sortedSales.map(sale => [
             new Date(sale.created_at).toLocaleString(),
             `Mesa ${sale.table_number}`,
             sale.mesero,
@@ -302,7 +329,7 @@ export default function VentasTotalesPage() {
                 { name: 'Cajero', filterButton: true },
                 { name: 'Cancelado Por', filterButton: true },
                 { name: 'Estado', filterButton: true },
-                { name: 'Tipo Pago', filterButton: true }, // <-- NUEVO
+                { name: 'Tipo Pago', filterButton: true },
                 { name: 'Total ($)', filterButton: true }
             ],
             rows: tableRows
@@ -356,12 +383,7 @@ export default function VentasTotalesPage() {
 
     return (
         <div className="container" style={{ padding: "1rem" }}>
-            <header className="responsive-header" style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1.5rem" }}>
-                <Link href="/admin" className="btn btn-secondary">
-                    <ChevronLeft size={20} /> Volver
-                </Link>
-                <h1>Historial de Ventas</h1>
-            </header>
+            <Header />
 
             <div className="glass-panel" style={{ padding: "0.75rem", marginBottom: "1.5rem", borderRadius: "12px", position: "relative", zIndex: 20 }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
@@ -560,12 +582,12 @@ export default function VentasTotalesPage() {
                 <div style={{ padding: "1rem", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
                     
                     <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                        <span style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>{filteredSales.length} transacciones encontradas</span>
+                        <span style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>{sortedSales.length} transacciones encontradas</span>
                         
                         <button 
                             onClick={handleExportExcel} 
-                            disabled={filteredSales.length === 0}
-                            title={filteredSales.length === 0 ? "Bloqueado: No existe ninguna venta" : "Realizar Reporte"}
+                            disabled={sortedSales.length === 0}
+                            title={sortedSales.length === 0 ? "Bloqueado: No existe ninguna venta" : "Realizar Reporte"}
                             className="btn btn-primary"
                             style={{ 
                                 display: "flex", 
@@ -573,8 +595,8 @@ export default function VentasTotalesPage() {
                                 gap: "0.5rem", 
                                 padding: "0.4rem 1rem",
                                 fontSize: "0.9rem",
-                                opacity: filteredSales.length === 0 ? 0.5 : 1,
-                                cursor: filteredSales.length === 0 ? "not-allowed" : "pointer",
+                                opacity: sortedSales.length === 0 ? 0.5 : 1,
+                                cursor: sortedSales.length === 0 ? "not-allowed" : "pointer",
                                 background: "rgba(34, 197, 94, 0.2)",
                                 color: "#4ade80",
                                 border: "1px solid rgba(34, 197, 94, 0.4)"
@@ -591,20 +613,38 @@ export default function VentasTotalesPage() {
                     <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "1000px" }}>
                         <thead>
                             <tr style={{ textAlign: "left", background: "rgba(255,255,255,0.02)", borderBottom: "1px solid var(--border)" }}>
-                                <th style={{ padding: "0.75rem 1rem", color: "white" }}>Fecha y Hora</th>
-                                <th style={{ padding: "0.75rem 1rem", color: "white" }}>Mesa</th>
-                                <th style={{ padding: "0.75rem 1rem", color: "white" }}>Mesero</th>
-                                <th style={{ padding: "0.75rem 1rem", color: "white" }}>Cocinero</th>
-                                <th style={{ padding: "0.75rem 1rem", color: "white" }}>Cajero</th>
-                                <th style={{ padding: "0.75rem 1rem", color: "white" }}>Cancelado Por</th>
-                                <th style={{ padding: "0.75rem 1rem", color: "white" }}>Estado</th>
-                                <th style={{ padding: "0.75rem 1rem", color: "white" }}>Tipo Pago</th>
-                                <th style={{ padding: "0.75rem 1rem", textAlign: "right", color: "white" }}>Monto</th>
+                                <th onClick={() => requestSort('created_at')} style={{ padding: "0.75rem 1rem", color: "white", cursor: "pointer", userSelect: "none" }}>
+                                    Fecha y Hora <ArrowUpDown size={14} style={{ display: "inline", opacity: 0.5 }} />
+                                </th>
+                                <th onClick={() => requestSort('table_number')} style={{ padding: "0.75rem 1rem", color: "white", cursor: "pointer", userSelect: "none" }}>
+                                    Mesa <ArrowUpDown size={14} style={{ display: "inline", opacity: 0.5 }} />
+                                </th>
+                                <th onClick={() => requestSort('mesero')} style={{ padding: "0.75rem 1rem", color: "white", cursor: "pointer", userSelect: "none" }}>
+                                    Mesero <ArrowUpDown size={14} style={{ display: "inline", opacity: 0.5 }} />
+                                </th>
+                                <th onClick={() => requestSort('cocinero')} style={{ padding: "0.75rem 1rem", color: "white", cursor: "pointer", userSelect: "none" }}>
+                                    Cocinero <ArrowUpDown size={14} style={{ display: "inline", opacity: 0.5 }} />
+                                </th>
+                                <th onClick={() => requestSort('cajero')} style={{ padding: "0.75rem 1rem", color: "white", cursor: "pointer", userSelect: "none" }}>
+                                    Cajero <ArrowUpDown size={14} style={{ display: "inline", opacity: 0.5 }} />
+                                </th>
+                                <th onClick={() => requestSort('cancelado_por')} style={{ padding: "0.75rem 1rem", color: "white", cursor: "pointer", userSelect: "none" }}>
+                                    Cancelado Por <ArrowUpDown size={14} style={{ display: "inline", opacity: 0.5 }} />
+                                </th>
+                                <th onClick={() => requestSort('status')} style={{ padding: "0.75rem 1rem", color: "white", cursor: "pointer", userSelect: "none" }}>
+                                    Estado <ArrowUpDown size={14} style={{ display: "inline", opacity: 0.5 }} />
+                                </th>
+                                <th onClick={() => requestSort('tipo_pago')} style={{ padding: "0.75rem 1rem", color: "white", cursor: "pointer", userSelect: "none" }}>
+                                    Tipo Pago <ArrowUpDown size={14} style={{ display: "inline", opacity: 0.5 }} />
+                                </th>
+                                <th onClick={() => requestSort('total')} style={{ padding: "0.75rem 1rem", textAlign: "right", color: "white", cursor: "pointer", userSelect: "none" }}>
+                                    Monto <ArrowUpDown size={14} style={{ display: "inline", opacity: 0.5 }} />
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredSales.length > 0 ? (
-                                filteredSales.map(sale => (
+                            {sortedSales.length > 0 ? (
+                                sortedSales.map(sale => (
                                     <tr key={sale.id} style={{ borderBottom: "1px solid var(--border)" }}>
                                         <td style={{ padding: "0.75rem 1rem", fontSize: "0.95rem" }}>{new Date(sale.created_at).toLocaleString()}</td>
                                         <td style={{ padding: "0.75rem 1rem", fontSize: "0.95rem" }}>Mesa {sale.table_number}</td>
@@ -649,7 +689,7 @@ export default function VentasTotalesPage() {
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan={8} style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)", fontSize: "0.95rem" }}>
+                                    <td colSpan={9} style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)", fontSize: "0.95rem" }}>
                                         No se encontraron ventas que coincidan con estos filtros.
                                     </td>
                                 </tr>

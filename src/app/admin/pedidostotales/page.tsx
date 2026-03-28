@@ -3,6 +3,7 @@ import { useState, useMemo } from "react";
 import { useSupabase } from "@/context/SupabaseProvider";
 import { ChevronLeft, Clock, Package, Filter, Plus, X } from "lucide-react";
 import Link from "next/link";
+import { Header } from "@/components/Header";
 
 // 1. Tipos para los filtros (Solo Fecha y Estado)
 type FilterCategory = 'fecha' | 'estado' | '';
@@ -178,12 +179,7 @@ export default function PedidosTotalesPage() {
 
     return (
         <div className="container">
-            <header className="responsive-header" style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "2rem" }}>
-                <Link href="/admin" className="btn btn-secondary">
-                    <ChevronLeft size={20} /> Volver
-                </Link>
-                <h1>Historial de Pedidos</h1>
-            </header>
+            <Header />
 
             {/* Panel de Filtros Profesional */}
             <div className="glass-panel" style={{ padding: "0.75rem", marginBottom: "1.5rem", borderRadius: "12px", position: "relative", zIndex: 20 }}>
