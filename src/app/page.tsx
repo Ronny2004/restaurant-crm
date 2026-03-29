@@ -10,6 +10,7 @@ import { ChefHat, UtensilsCrossed, Monitor, Calculator, LogOut, Loader2, UserCir
 export default function Home() {
   const { profile, loading, signOut } = useAuth();
   const router = useRouter();
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && !profile) {
@@ -73,7 +74,6 @@ export default function Home() {
     }
   ];
 
-  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
   return (
     <main className="container" style={{ minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>

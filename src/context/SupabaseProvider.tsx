@@ -183,7 +183,7 @@ export function SupabaseProvider({ children }: { children: React.ReactNode }) {
         const { data, error } = await supabase
             .from("auditoria_pedidos")
             .select("*")
-            .order('fecha_hora', { ascending: false }); // o created_at, dependiendo de cómo se llame tu columna
+            .order('fecha_hora', { ascending: false });
 
         if (error) {
             console.error("Error al obtener la auditoría:", error);

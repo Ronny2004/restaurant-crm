@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useSupabase } from "@/context/SupabaseProvider";
 import { ChevronLeft, Clock, Package, Filter, Plus, X } from "lucide-react";
 import Link from "next/link";
@@ -95,7 +95,39 @@ const MultiSelectDropdown = ({
 };
 
 export default function PedidosTotalesPage() {
-    const { orders } = useSupabase();
+    const { orders, auditorias, fetchAuditorias } = useSupabase();
+
+    useEffect(() => {
+        fetchAuditorias();
+    }, [fetchAuditorias]);
+
+    // FILTRO MAESTRO
+    const historyOrders = useMemo(() => {
+        const pagados = (orders || []).filter(o => o.is_paid);
+        
+        const sourceCancelados = auditorias || [];
+        const cancelados = sourceCancelados.map((aud: any) => {
+            let parsedItems = [];
+            if (typeof aud.detalle === 'string') {
+                try { parsedItems = JSON.parse(aud.detalle); } catch(e) {}
+            } else {
+                parsedItems = aud.detalle || aud.items || aud.productos || [];
+            }
+
+            return {
+                id: aud.pedido_id || aud.id || Math.random().toString(), 
+                table_number: aud.mesa || aud.table_number,
+                is_paid: false,
+                status: 'canceled', 
+                items: parsedItems, 
+                created_at: aud.fecha_hora || aud.created_at,
+                cancelado_por: aud.cancelado_por,
+                pedido_original: aud.pedido_original // Aquí capturamos la data
+            };
+        });
+
+        return [...pagados, ...cancelados].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    }, [orders, auditorias]);
     
     // 3. Estado de Filtros Dinámicos
     const [filters, setFilters] = useState<FilterBlock[]>([{
@@ -112,10 +144,10 @@ export default function PedidosTotalesPage() {
     }]);
 
     const availableYears = useMemo(() => {
-        const years = orders.map(o => new Date(o.created_at).getFullYear());
+        const years = historyOrders.map(o => new Date(o.created_at).getFullYear());
         const uniqueYears = Array.from(new Set(years)).sort((a, b) => b - a);
         return uniqueYears.length > 0 ? uniqueYears : [new Date().getFullYear()];
-    }, [orders]);
+    }, [historyOrders]);
 
     const addFilter = () => {
         setFilters([...filters, {
@@ -140,9 +172,9 @@ export default function PedidosTotalesPage() {
         setFilters(filters.filter(f => f.id !== id));
     };
 
-    // 4. Lógica de Filtrado (Solo Fecha y Estado)
+    // 4. Lógica de Filtrado 
     const filteredOrders = useMemo(() => {
-        return orders.filter(order => {
+        return historyOrders.filter(order => {
             const orderDate = new Date(order.created_at);
 
             for (const f of filters) {
@@ -175,7 +207,7 @@ export default function PedidosTotalesPage() {
             }
             return true;
         });
-    }, [orders, filters]);
+    }, [historyOrders, filters]);
 
     return (
         <div className="container">
@@ -255,11 +287,8 @@ export default function PedidosTotalesPage() {
                                     selectedValues={f.statusValues}
                                     onChange={(vals) => updateFilter(f.id, 'statusValues', vals)}
                                     options={[
-                                        { label: 'Pendiente', value: 'pending' },
-                                        { label: 'En Cocina', value: 'preparing' },
-                                        { label: 'Sirviendo', value: 'served' },
-                                        { label: 'Servido', value: 'ready' },
-                                        { label: 'Pagado', value: 'paid' }
+                                        { label: 'Pagado', value: 'paid' },
+                                        { label: 'Cancelado/Eliminado', value: 'canceled' }
                                     ]}
                                 />
                             )}
@@ -311,27 +340,56 @@ export default function PedidosTotalesPage() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "1.5rem" }}>
                 {filteredOrders.length > 0 ? (
                     filteredOrders.map(order => (
-                        <div key={order.id} className="glass-panel" style={{ padding: "1.5rem", borderLeft: `4px solid ${order.is_paid ? 'var(--success)' : 'var(--primary)'}` }}>
+                        <div key={order.id} className="glass-panel" style={{ padding: "1.5rem", borderLeft: `4px solid ${order.is_paid ? 'var(--success)' : order.status === 'canceled' ? 'var(--danger)' : 'var(--primary)'}` }}>
+                            
+                            {/* Cabecera de la Tarjeta */}
                             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1rem" }}>
                                 <h3 style={{ margin: 0 }}>Mesa {order.table_number}</h3>
                                 <span style={{ 
                                     padding: "0.2rem 0.6rem", 
                                     borderRadius: "20px", 
                                     fontSize: "0.7rem", 
-                                    background: order.is_paid ? 'rgba(34,197,94,0.2)' : 'rgba(59,130,246,0.2)',
-                                    color: order.is_paid ? '#4ade80' : '#60a5fa'
+                                    background: order.is_paid ? 'rgba(34,197,94,0.2)' : order.status === 'canceled' ? 'rgba(239,68,68,0.2)' : 'rgba(59,130,246,0.2)',
+                                    color: order.is_paid ? '#4ade80' : order.status === 'canceled' ? '#ef4444' : '#60a5fa'
                                 }}>
-                                    {order.is_paid ? 'Pagado' : 'Pendiente'}
+                                    {order.is_paid ? 'Pagado' : order.status === 'canceled' ? 'Cancelado' : 'Pendiente'}
                                 </span>
                             </div>
 
+                            {/* Cuerpo dinámico según la imagen que me enviaste */}
+                            {/* Cuerpo dinámico */}
                             <div style={{ marginBottom: "1rem" }}>
-                                {order.items?.map((item: any, idx: number) => (
-                                    <div key={idx} style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.3rem", color: "var(--text-muted)" }}>
-                                        <Package size={14} />
-                                        <span>{item.quantity}x {item.product?.name}</span>
-                                    </div>
-                                ))}
+                                {order.status === 'canceled' ? (
+                                    // 🔴 Diseño para Cancelados: Separando el texto y formateando la cantidad
+                                    order.pedido_original ? (
+                                        order.pedido_original.split(',').map((itemStr: string, idx: number) => {
+                                            // Extraemos el nombre y la cantidad usando Regex
+                                            const match = itemStr.match(/(.+?)\s*\(x(\d+)\)/);
+                                            // Si coincide, armamos "2x Coca-Cola", si no, dejamos el texto normal
+                                            const displayText = match ? `${match[2]}x ${match[1].trim()}` : itemStr.trim();
+
+                                            return (
+                                                <div key={idx} style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.3rem", color: "#ef4444" }}>
+                                                    <Package size={14} />
+                                                    <span>{displayText}</span>
+                                                </div>
+                                            );
+                                        })
+                                    ) : (
+                                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#ef4444" }}>
+                                            <Package size={14} />
+                                            <span>Sin registro</span>
+                                        </div>
+                                    )
+                                ) : (
+                                    // 🟢 Diseño para Pagados / Normales
+                                    order.items?.map((item: any, idx: number) => (
+                                        <div key={idx} style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.3rem", color: "var(--text-muted)" }}>
+                                            <Package size={14} />
+                                            <span>{item.quantity}x {item.product?.name || item.nombre_producto || item.name}</span>
+                                        </div>
+                                    ))
+                                )}
                             </div>
 
                             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.8rem", opacity: 0.6, borderTop: "1px solid var(--border)", paddingTop: "0.8rem" }}>
