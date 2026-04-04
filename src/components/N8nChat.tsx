@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { createChat } from '@n8n/chat';
 import { usePathname } from 'next/navigation';
-import '@n8n/chat/style.css';
+import '@n8n/chat/dist/style.css';
 
 export const N8nChat = () => {
     const pathname = usePathname();
