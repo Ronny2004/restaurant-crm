@@ -61,7 +61,7 @@ export function Header() {
 
     // 2. Rutas de navegación actualizadas con Submenús
     const navItems = [
-        { label: 'Home', icon: Home, href: '/' },
+        { label: 'Inicio', icon: Home, href: '/' },
         { 
             label: 'Admin', 
             icon: LayoutDashboard, 
@@ -71,9 +71,9 @@ export function Header() {
                 { label: 'Historial de Pedidos', href: '/admin/pedidostotales' }
             ]
         },
-        { label: 'Orders', icon: ClipboardList, href: '/mesero' },
-        { label: 'Kitchen', icon: Utensils, href: '/cocina' },
-        { label: 'Checkout', icon: Receipt, href: '/cajero' },
+        { label: 'Mesero', icon: ClipboardList, href: '/mesero' },
+        { label: 'Cocinero', icon: Utensils, href: '/cocina' },
+        { label: 'Cajero', icon: Receipt, href: '/cajero' },
     ];
 
     const handleLogout = async () => {
@@ -225,7 +225,7 @@ export function Header() {
                         onMouseLeave={(e) => e.currentTarget.style.color = isProfileMenuOpen ? "white" : "var(--text-muted)"}
                     >
                         <UserCircle size={24} />
-                        <span style={{ fontSize: "0.8rem" }}>Profile</span>
+                        <span style={{ fontSize: "0.8rem" }}>Perfil</span>
                     </button>
 
                     {/* Menú Desplegable de Perfil */}
@@ -251,7 +251,7 @@ export function Header() {
                                 onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
                                 onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                             >
-                                <User size={16} /> Profile
+                                <User size={16} /> Datos Personales
                             </button>
                             
                             <button 
@@ -260,8 +260,7 @@ export function Header() {
                                 onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
                                 onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                             >
-                                <Settings size={16} /> Settings
-                            </button>
+                                <Settings size={16} /> Configuración                            </button>
                             
                             <div style={{ height: "1px", background: "var(--border)", margin: "0.3rem 0" }} />
                             
@@ -272,7 +271,7 @@ export function Header() {
                                 onMouseEnter={(e) => e.currentTarget.style.background = "rgba(239, 68, 68, 0.1)"}
                                 onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                             >
-                                <LogOut size={16} /> Logout
+                                <LogOut size={16} /> Cerrar Sesión
                             </button>
                         </div>
                     )}

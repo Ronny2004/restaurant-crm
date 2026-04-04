@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect } from 'react';
-import { createChat } from '@n8n/chat';
 import { usePathname } from 'next/navigation';
 import '@n8n/chat/dist/style.css';
 
@@ -15,11 +14,11 @@ export const N8nChat = () => {
                 createChat({
                     webhookUrl: 'https://melodyai.app.n8n.cloud/webhook/c0edce0b-4e82-4438-9ef8-c7c3c94b6db9/chat', // ¡No olvides poner tu URL!
                     webhookConfig: {
-                    method: 'POST',
-                    headers: {}
+                        method: 'POST',
+                        headers: {}
                     },
                     target: '#n8n-chat',
-                    mode: 'window',
+                    // 👇 AQUÍ ESTABA "mode: 'window',". YA LO ELIMINAMOS 👇
                     chatInputKey: 'chatInput',
                     chatSessionKey: 'sessionId',
                     loadPreviousSession: true,
@@ -27,9 +26,9 @@ export const N8nChat = () => {
                     showWelcomeScreen: false,
                     defaultLanguage: 'es',
                     initialMessages: [
-                    'Hola! 👋',
-                    'Soy tu asistente virtual para el CRM del restaurante.', 
-                    '¿En qué puedo ayudarte hoy?'
+                        'Hola! 👋',
+                        'Soy tu asistente virtual para el CRM del restaurante.', 
+                        '¿En qué puedo ayudarte hoy?'
                     ],
                     i18n: {
                         es: {
@@ -38,15 +37,15 @@ export const N8nChat = () => {
                             footer: '',
                             getStarted: 'New Conversation',
                             inputPlaceholder: 'Empieza a chatear...',
-                            closeButtonTooltip: 'Close chat',
+                            closeButtonTooltip: 'Cerrar chat',
                         },
                         en: {
-                            title: 'Hi there! 👋',
+                            title: 'Chatbot CRM',
                             subtitle: "Start a chat. We're here to help you 24/7.",
                             footer: '',
                             getStarted: 'New Conversation',
                             inputPlaceholder: 'Type your question..',
-                            closeButtonTooltip: 'Close chat', // <-- ESTA ES LA PROPIEDAD QUE FALTA
+                            closeButtonTooltip: 'Close chat', 
                         },
                     },
                     enableStreaming: false,
