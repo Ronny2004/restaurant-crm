@@ -1,0 +1,13 @@
+diff --git a/node_modules/@n8n/chat/dist/types/options.d.ts b/node_modules/@n8n/chat/dist/types/options.d.ts
+index 8b7ff28..fa02e41 100644
+--- a/node_modules/@n8n/chat/dist/types/options.d.ts
++++ b/node_modules/@n8n/chat/dist/types/options.d.ts
+@@ -15,7 +15,7 @@ export interface ChatOptions {
+     sessionId?: string;
+     chatInputKey?: string;
+     chatSessionKey?: string;
+-    defaultLanguage?: 'en';
++    defaultLanguage?: 'es' | 'en' | string;
+     initialMessages?: string[];
+     messageHistory?: ChatMessage[];
+     metadata?: Record<string, unknown>;
