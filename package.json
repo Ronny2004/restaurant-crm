@@ -17,6 +17,7 @@
     "@supabase/supabase-js": "^2.86.2",
     "clsx": "^2.1.1",
     "exceljs": "^4.4.0",
+    "glob": "^13.5.11",
     "lucide-react": "^0.556.0",
     "next": "16.0.7",
     "patch-package": "^8.0.1",
@@ -34,5 +35,8 @@
     "eslint": "^9",
     "eslint-config-next": "16.0.7",
     "typescript": "^5"
+  },
+  "overrides": {
+    "glob": "^11.1.0"
   }
 }
