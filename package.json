@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "prebuild": "patch-package --error-on-fail",
     "dev": "next dev",
     "build": "next build",
     "build:static": "next build",
