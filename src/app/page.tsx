@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChefHat, UtensilsCrossed, Monitor, Calculator, LogOut, Loader2, UserCircle, Settings, User } from "lucide-react";
 
+
 export default function Home() {
   const { profile, loading, signOut } = useAuth();
   const router = useRouter();
