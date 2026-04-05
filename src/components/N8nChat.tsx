@@ -24,6 +24,7 @@ export const N8nChat = () => {
                     loadPreviousSession: true,
                     metadata: {},
                     showWelcomeScreen: false,
+                    // @ts-ignore
                     defaultLanguage: 'es',
                     initialMessages: [
                         'Hola! 👋',
