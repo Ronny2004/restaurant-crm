@@ -7,7 +7,7 @@
     "build": "next build",
     "build:static": "next build",
     "start": "next start",
-    "lint": " next lint",
+    "lint": " eslint",
     "build:android": "next build && npx cap sync android && npx cap open android"
   },
   "dependencies": {
