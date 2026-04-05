@@ -1,1 +1,2 @@
 declare module '@n8n/chat/dist/style.css';
+declare module "*.css";
