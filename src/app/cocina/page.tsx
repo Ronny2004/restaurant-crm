@@ -7,6 +7,7 @@ import { useSupabase, Order } from "@/context/SupabaseProvider";
 import { Clock, CheckCircle, Loader2, Play, Check } from "lucide-react";
 import { RoleNavigation } from "@/components/RoleNavigation";
 import { useToast } from "@/context/ToastContext";
+import { Header } from "@/components/Header";
 
 export default function CocinaPage() {
     const { profile, loading: authLoading } = useAuth();
@@ -65,10 +66,7 @@ export default function CocinaPage() {
 
     return (
         <div className="container">
-            <header className="responsive-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem", flexWrap: "wrap", gap: "1rem" }}>
-                <h1>Cocina - Comandas Activas</h1>
-                <RoleNavigation />
-            </header>
+            <Header />
 
             {kitchenOrders.length === 0 ? (
                 <div className="glass-panel" style={{ padding: "3rem", textAlign: "center", fontStyle: "italic", color: "var(--text-muted)" }}>

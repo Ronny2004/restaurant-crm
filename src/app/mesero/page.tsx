@@ -8,6 +8,7 @@ import { Plus, Minus, ShoppingCart, LogOut, Loader2, Edit2, Trash2, Send, X, Che
 import { RoleNavigation } from "@/components/RoleNavigation";
 import { useToast } from "@/context/ToastContext";
 import { Modal } from "@/components/ui/Modal";
+import { Header } from "@/components/Header";
 
 export default function MeseroPage() {
     const { profile, loading: authLoading } = useAuth();
@@ -226,10 +227,7 @@ export default function MeseroPage() {
 
     return (
         <div className="container">
-            <header className="responsive-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem", flexWrap: "wrap", gap: "1rem" }}>
-                <h1>Mesero - Nuevo Pedido</h1>
-                <RoleNavigation />
-            </header>
+            <Header />
 
             <div className="waiter-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "2rem" }}>
                 
@@ -245,23 +243,43 @@ export default function MeseroPage() {
                                 </button>
                             </div>
                         ) : (
-                            productosDisponibles.map((product) => (
-                                <div key={product.id} className="glass-panel" style={{ padding: "1.5rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
-                                        <h3 style={{ fontSize: "1.2rem" }}>{product.name}</h3>
-                                        <span style={{ color: "var(--primary)", fontWeight: "bold" }}>${product.price.toFixed(2)}</span>
+                            productosDisponibles.map((product) => {
+                                // 1. CALCULAMOS EL STOCK VISUAL EN TIEMPO REAL
+                                const cartItem = cart.find(item => item.product.id === product.id);
+                                const inCartQty = cartItem ? cartItem.quantity : 0;
+                                const stockRestante = product.stock - inCartQty;
+
+                                return (
+                                    <div key={product.id} className="glass-panel" style={{ padding: "1.5rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
+                                            <h3 style={{ fontSize: "1.2rem" }}>{product.name}</h3>
+                                            <span style={{ color: "var(--primary)", fontWeight: "bold" }}>${product.price.toFixed(2)}</span>
+                                        </div>
+                                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                                            <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>{product.category}</p>
+                                            {/* 2. MOSTRAMOS EL STOCK RESTANTE Y CAMBIAMOS EL COLOR SI SE ACABA */}
+                                            <small style={{ color: stockRestante > 0 ? "var(--success)" : "var(--danger)", fontWeight: stockRestante <= 0 ? "bold" : "normal" }}>
+                                                Stock: {stockRestante}
+                                            </small>
+                                        </div>
+                                        <div style={{ marginTop: "auto", paddingTop: "1rem" }}>
+                                            {/* 3. BLOQUEAMOS EL BOTÓN SI EL STOCK VISUAL LLEGA A 0 */}
+                                            <button 
+                                                onClick={() => addToCart(product)} 
+                                                className="btn btn-primary" 
+                                                disabled={stockRestante <= 0}
+                                                style={{ 
+                                                    width: "100%", 
+                                                    opacity: stockRestante <= 0 ? 0.5 : 1,
+                                                    cursor: stockRestante <= 0 ? "not-allowed" : "pointer"
+                                                }}
+                                            >
+                                                <Plus size={18} /> {stockRestante <= 0 ? "Agotado" : "Agregar"}
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                                        <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>{product.category}</p>
-                                        <small style={{ color: "var(--success)" }}>Stock: {product.stock}</small>
-                                    </div>
-                                    <div style={{ marginTop: "auto", paddingTop: "1rem" }}>
-                                        <button onClick={() => addToCart(product)} className="btn btn-primary" style={{ width: "100%" }}>
-                                            <Plus size={18} /> Agregar
-                                        </button>
-                                    </div>
-                                </div>
-                            ))
+                                );
+                            })
                         )}
                     </div>
                 </div>
@@ -443,9 +461,31 @@ export default function MeseroPage() {
                                 }}
                             >
                                 <option value="">+ Agregar plato o bebida...</option>
-                                {productosDisponibles.map(p => (
-                                    <option key={p.id} value={p.id}>{p.name} - ${p.price} (Stock: {p.stock})</option>
-                                ))}
+                                {productosDisponibles.map(p => {
+                                    // 1. Buscamos cuánto de este producto ya tenía el pedido originalmente
+                                    const originalItem = editingOrder?.items?.find((item: any) => (item.product?.id || item.product_id) === p.id);
+                                    const originalQty = originalItem ? originalItem.quantity : 0;
+                                    
+                                    // 2. Límite máximo (lo que ya tenía la orden + lo que queda en la BD)
+                                    const maxAllowed = originalQty + p.stock;
+                                    
+                                    // 3. Cuánto de este producto hemos puesto AHORA MISMO en el carrito de edición
+                                    const editCartItem = editCart.find((item: any) => (item.product?.id || item.product_id) === p.id);
+                                    const currentEditQty = editCartItem ? editCartItem.quantity : 0;
+                                    
+                                    // 4. Calculamos el stock visual restante
+                                    const stockRestante = maxAllowed - currentEditQty;
+
+                                    return (
+                                        <option 
+                                            key={p.id} 
+                                            value={p.id}
+                                            disabled={stockRestante <= 0} // Bloquea la opción si se acabó
+                                        >
+                                            {p.name} - ${p.price} (Stock: {stockRestante}) {stockRestante <= 0 ? '- AGOTADO' : ''}
+                                        </option>
+                                    );
+                                })}
                             </select>
                             <button 
                                 onClick={handleAddNewItemToEditOrder}

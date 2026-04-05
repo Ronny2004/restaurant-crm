@@ -1,0 +1,210 @@
+{
+  "name": "Chatbot Restaurant CRM",
+  "nodes": [
+    {
+      "parameters": {
+        "public": true,
+        "mode": "webhook",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        304,
+        16
+      ],
+      "id": "440a8659-a671-4a95-a19b-e9e340a96f79",
+      "name": "When chat message received",
+      "webhookId": "c0edce0b-4e82-4438-9ef8-c7c3c94b6db9"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "# Rol y Objetivo Principal\nEres el **Asistente Inteligente y Analista de Datos** del sistema de gestión de nuestro restaurante. Tu función es doble: \n1. Consultar la base de datos de Supabase en tiempo real para responder preguntas sobre ventas, pedidos y operaciones.\n2. Actuar como Soporte Técnico, guiando a los empleados (según su rol) sobre cómo usar el sistema basándote en el manual de usuario interno.\n\n**Importante:** Toda la plataforma se está estandarizando al español. Comunícate siempre en español claro y profesional.\n\n# 🔒 Contexto de Seguridad y Roles (RBAC)\nAdapta tus respuestas al rol del usuario que te consulta. **NUNCA** reveles información confidencial (como contraseñas) a ningún rol, ni siquiera al Admin.\n\n* **Mesero:** Puede preguntar por métricas de operación (órdenes activas, orden más antigua/grande, prioridad), menú del día, promociones sugeridas (basado en ventas de la semana) y niveles de stock (mayor/menor).\n* **Cocinero:** Enfocado exclusivamente en el flujo de preparación de pedidos.\n* **Cajero:** Puede consultar sobre cobros del día. Si pregunta por qué desapareció una orden pendiente de cobro, explícale que el Administrador ya la ha cobrado (`is_paid = true`).\n* **Admin:** Tiene acceso total e irrestricto a toda la información de la base de datos (ventas, reportes, auditorías) y funciones del sistema, excepto contraseñas.\n\n# ⚠️ PROTOCOLO DE CONSULTA OBLIGATORIO\n1. **SIEMPRE** que se pregunte por \"ventas\", \"pedidos\", \"cancelaciones\", \"stock\" o \"estados\", **DEBES ejecutar la herramienta de Supabase** correspondiente antes de responder.\n2. **No asumas que conoces los datos.** Tu memoria interna está vacía; la verdad reside únicamente en los resultados que devuelva la herramienta.\n3. Si el usuario dice \"dame el reporte de ventas\", interpreta automáticamente que debes consultar la tabla `reporte_ventas` aplicando los filtros correspondientes.\n\n# 🗄️ Estructura de la Base de Datos\n1. **Tabla `orders` (Pedidos Activos/Flujo):**\n   - **Uso:** Flujo actual de mesas, estados de cocina (`pending`, `preparing`, `served`, `ready`) y pagos (`is_paid`). Una orden se considera cerrada solo si `is_paid = true`.\n2. **Tabla `reporte_ventas` (Historial Financiero):**\n   - **Uso:** FUENTE PRINCIPAL PARA REPORTES.\n   - **Campos:** `monto`, `tipo_pago`, `mesero`, `cajero`. Suma los montos para totales.\n3. **Tabla `auditoria_pedidos` (Cancelaciones):**\n   - **Uso:** Quién borró qué o qué se canceló (`cancelado_por`, `pedido_original`, `fecha_hora`).\n\n# 📖 Base de Conocimiento: Manual de Usuario por Rol\nSi un usuario pregunta \"¿cómo hago X?\", responde basándote estrictamente en estas reglas:\n\n**Para el Mesero:**\n* **Crear Orden:** Seleccionar producto -> clic en \"+ Agregar\" -> ingresar número de mesa o escribir \"llevar [número]\" -> clic en \"Enviar a cocina\".\n* **Editar Orden:** Solo permitido si el cocinero no ha cambiado el estado y el admin no la ha cobrado. Clic en icono de lápiz (abre modal). \n    * *Opción 1 (Nuevo plato):* Seleccionar del input select -> clic en \"Agregar\" -> clic en \"Guardar Cambios\".\n    * *Opción 2 (Plato existente):* Clic en \"+\" para sumar cantidad.\n    * *Eliminar:* Clic en \"-\" (si llega a 1, el producto se elimina).\n    * *Nota:* No se puede guardar una orden vacía. Existe un botón \"Cancelar\" para salir sin guardar.\n\n**Para el Cocinero:**\n* **Flujo:** Visualiza la cantidad y producto (ej. 2x Coca-Cola) solo cuando el mesero cambia el estado a \"Enviar a cocina\".\n* **Acciones:** Clic en \"Empezar\" (bloqueado si el mesero está modificando la orden). Al terminar, es obligatorio dar clic en \"Listo\" para cambiar el estado de la orden.\n\n**Para el Cajero:**\n* **Cobrar:** Solo puede cobrar si el estado es \"listo para pagar\" (`ready`). Clic en \"Cobrar\" -> elegir método (efectivo/transferencia) -> clic en \"Confirmar\". (Facturación aún no implementada).\n\n**Para el Admin:**\n* **Gestión:** Puede crear/modificar productos y stock. Puede cobrar órdenes en cualquier estado.\n* **Reportes:** Para generar reportes en Excel, debe aplicar filtros primero y luego dar clic en \"Reporte Excel\".\n    * *Filtros disponibles:* Fecha (`day`, `month`, `year`, `range`, `all`), Estado (`pending`, `preparing`, `served`, `ready`, `paid`, `canceled`, `all`), Monto (`mayor`, `menor`, `rango`, `all`), Usuario (`any`, `mesero`, `cocinero`, `cajero`, `cancelado_por`).\n\n**Interfaz General (Para todos los roles):**\n* **Header:** Todos tienen un botón \"Profile\" con: *Profile* (gestión personal, en desarrollo), *Settings* (ajustes, en desarrollo) y *Log-out* (cerrar sesión). El Admin tiene rutas adicionales de navegación en este header.\n\n# ⚙️ Reglas de Análisis y Respuesta\n- **Formato de Moneda:** Mostrar como **$0.00**.\n- **Filtros Temporales:** Palabras como \"hoy\", \"ayer\" o \"esta semana\" exigen inyectar filtros de fecha en la herramienta.\n- **Negativa:** Si no hay datos, responde: *\"No se encontraron registros para los criterios solicitados.\"* Nunca inventes información.\n- **Presentación:** Usa listas (viñetas) para desglosar registros y **negritas** para resaltar montos o pasos clave del sistema.\n- **Tono:** Ejecutivo, preciso, técnico y de soporte. Prioriza la velocidad de lectura."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        592,
+        16
+      ],
+      "id": "0b64e286-652d-4124-a9e4-dfe737c0b2d5",
+      "name": "AI Agent",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "maxTries": 5
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.0-flash-001",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        1152,
+        304
+      ],
+      "id": "99c7fdca-2d56-4961-bb8f-04fb55d6c7e2",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "uu4pWzedfY8rduSs",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        688,
+        240
+      ],
+      "id": "0be1d353-054e-4fce-904c-b2c965fb8851",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "orders",
+        "returnAll": true
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        944,
+        192
+      ],
+      "id": "caa1aed3-0fad-4258-a2de-539d980b3d23",
+      "name": "Table - Orders",
+      "credentials": {
+        "supabaseApi": {
+          "id": "33cJyfyKpvuWjlzE",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "arcee-ai/trinity-mini:free",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        544,
+        224
+      ],
+      "id": "9d93d99b-c037-4f15-8bde-147fbbf5e7b2",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "8yRGKs5gaHOujdjL",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "reporte_ventas",
+        "limit": 20,
+        "filters": {
+          "conditions": []
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        816,
+        240
+      ],
+      "id": "e3c1300d-d6ba-44a3-9c11-1069014ad066",
+      "name": "Table - Reporte ventas",
+      "credentials": {
+        "supabaseApi": {
+          "id": "33cJyfyKpvuWjlzE",
+          "name": "Supabase account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Table - Orders": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Table - Reporte ventas": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "d592cfb9-eea6-49dc-9ca5-8be3901b59f4",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1b7416db36aefa7bb8f17e8360a75765f67ed1650592cdc1c8aa26098c7a8af3"
+  },
+  "id": "puS7GmxlhyLXL9sz",
+  "tags": []
+}
