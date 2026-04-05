@@ -35,8 +35,5 @@
     "eslint": "^9",
     "eslint-config-next": "16.0.7",
     "typescript": "^5"
-  },
-  "overrides": {
-    "glob": "^11.1.0"
   }
 }
