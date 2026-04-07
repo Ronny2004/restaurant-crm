@@ -3,16 +3,16 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
-import { useSupabase, Order } from "@/context/SupabaseProvider";
-import { Clock, CheckCircle, Loader2, Play, Check } from "lucide-react";
-import { RoleNavigation } from "@/components/RoleNavigation";
+import { Order } from "@/types";
+import { useOrders } from "@/hooks/useOrders";
+import { Clock, CheckCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
-import { Header } from "@/components/Header";
+import { Header } from "@/components/layout/Header";
 
 export default function CocinaPage() {
     const { profile, loading: authLoading } = useAuth();
     const router = useRouter();
-    const { orders, updateOrderStatus, loading, fetchOrders } = useSupabase();
+    const { loadingOrders: loading, orders, updateOrderStatus, fetchOrders } = useOrders();
     const toast = useToast();
     const [processingId, setProcessingId] = useState<string | null>(null);
 
@@ -37,8 +37,6 @@ export default function CocinaPage() {
 
     // Filter for active kitchen orders (pending or preparing)
     const kitchenOrders = orders.filter(o => o.status === 'pending' || o.status === 'preparing');
-
-    // ... resto del código anterior
 
     const handleStatusChange = async (orderId: string, currentStatus: string) => {
         setProcessingId(orderId);

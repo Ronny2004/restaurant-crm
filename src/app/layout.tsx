@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "@/app/globals.css"
-import { Providers } from "@/components/Providers";
-import { N8nChat } from "@/components/N8nChat";
+import { Providers } from "@/components/layout/Providers";
+import { N8nChatWidget } from "@/components/integrations/N8nChatWidget";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -24,7 +24,7 @@ export default function RootLayout({
             {children}
           </Providers>
         </div>
-        <N8nChat />
+        <N8nChatWidget />
       </body>
     </html>
   );

@@ -1,9 +1,9 @@
 "use client";
 import { useState, useMemo, useEffect } from "react";
-import { useSupabase } from "@/context/SupabaseProvider";
+import { useOrders } from "@/hooks/useOrders";
 import { ChevronLeft, Clock, Package, Filter, Plus, X } from "lucide-react";
 import Link from "next/link";
-import { Header } from "@/components/Header";
+import { Header } from "@/components/layout/Header";
 
 // 1. Tipos para los filtros (Solo Fecha y Estado)
 type FilterCategory = 'fecha' | 'estado' | '';
@@ -95,11 +95,7 @@ const MultiSelectDropdown = ({
 };
 
 export default function PedidosTotalesPage() {
-    const { orders, auditorias, fetchAuditorias } = useSupabase();
-
-    useEffect(() => {
-        fetchAuditorias();
-    }, [fetchAuditorias]);
+    const { auditorias, orders } = useOrders();
 
     // FILTRO MAESTRO
     const historyOrders = useMemo(() => {
@@ -115,7 +111,7 @@ export default function PedidosTotalesPage() {
             }
 
             return {
-                id: aud.pedido_id || aud.id || Math.random().toString(), 
+                id: `cancel-${aud.id || Math.random().toString()}`, 
                 table_number: aud.mesa || aud.table_number,
                 is_paid: false,
                 status: 'canceled', 
@@ -340,7 +336,7 @@ export default function PedidosTotalesPage() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "1.5rem" }}>
                 {filteredOrders.length > 0 ? (
                     filteredOrders.map(order => (
-                        <div key={order.id} className="glass-panel" style={{ padding: "1.5rem", borderLeft: `4px solid ${order.is_paid ? 'var(--success)' : order.status === 'canceled' ? 'var(--danger)' : 'var(--primary)'}` }}>
+                        <div key={order.id} className={`glass-panel p-6 border-l-4 ${order.is_paid ? 'border-l-success' : order.status === 'canceled' ? 'border-l-danger' : 'border-l-primary'}`}>
                             
                             {/* Cabecera de la Tarjeta */}
                             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1rem" }}>

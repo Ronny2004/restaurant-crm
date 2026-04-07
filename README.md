@@ -1,85 +1,65 @@
-# 🍽️ DeliciasMoran (Restaurant CRM)
+# 🍽️ Restaurant CRM (DeliciasMoran)
 
-Sistema de gestión integral para restaurantes con interfaces especializadas para diferentes roles: Administrador, Mesero, Chef y Cajero. Este ecosistema incluye una plataforma Web moderna y una aplicación Android nativa optimizada.
+Sistema de gestión integral para restaurantes basado en **Clean Architecture**. Diseñado para ser altamente modular, escalable y con sincronización en tiempo real.
 
 ## 📋 Características Principales
 
-### 👥 Roles y Permisos (Web & Android)
-- **Administrador**: Gestión completa de inventario, productos, ventas y usuarios. Panel de estadísticas con flitrado por periodos.
-- **Mesero**: Creación y gestión de órdenes de las mesas. Vista de pedidos activos.
-- **Chef**: Visualización y actualización del estado de las órdenes en cocina.
-- **Cajero**: Procesamiento de pagos, facturación y cierre de órdenes.
+### 👥 Roles y Permisos Especializados
+- **Admin**: Gestión global, inventarios, reportes avanzados de ventas y auditoría de pedidos.
+- **Mesero**: Toma de comandas optimizada con gestión de stock en tiempo real y edición de pedidos.
+- **Cocinero**: Panel de control de comandas con estados dinámicos (Pendiente, Preparando, Listo).
+- **Cajero**: Módulo de cobros rápido con soporte para múltiples métodos de pago (Efectivo, Transferencia).
 
-### 🎯 Funcionalidades Destacadas
-- ✅ **Sincronización Total**: Datos compartidos en tiempo real entre Web y Android.
-- ✅ **Filtrado Avanzado**: Estadísticas detalladas de ventas en el dashboard de administración.
-- ✅ **Identidad Corporativa**: Totalmente brandeado para "DeliciasMoran" con logo e iconografía personalizada.
-- ✅ **Seguridad Robusta**: Row Level Security (RLS) en base de datos y confirmación de acciones críticas en móvil.
+### 🎯 Innovaciones Técnicas
+- ✅ **Modularity**: Arquitectura desacoplada basada en Hooks independientes por dominio.
+- ✅ **Real-time Engine**: Sincronización bidireccional mediante Supabase Postgres Changes.
+- ✅ **Optimistic UI**: Actualizaciones instantáneas en la interfaz para una experiencia fluida.
+- ✅ **N8n Integration**: Asistente virtual inteligente integrado para soporte y análisis de datos.
 
 ## 🛠️ Stack Tecnológico
-- **Web**: Next.js 16, React 19, CSS Vanilla.
-- **Mobile**: Android nativo (Kotlin, MVVM, Material Design 3).
-- **Backend**: Supabase (PostgreSQL, Auth, RLS).
+- **Frontend**: Next.js 16 (App Router), TypeScript, Tailwind CSS / Vanilla CSS.
+- **Backend**: Supabase (PostgreSQL, Auth, Realtime, RLS).
+- **Integraciones**: n8n (Chatbot con IA), ExcelJS (Reportes analíticos).
 
-## 🚀 Guía de Instalación (Producción)
+## 📂 Estructura del Proyecto (Clean Architecture)
+```
+restaurant-crm/
+├── src/
+│   ├── app/            # Rutas y páginas (App Router)
+│   ├── components/
+│   │   ├── layout/     # Componentes core (Header, Providers)
+│   │   ├── ui/         # Componentes atómicos (Modal, Toast)
+│   │   └── integrations/# Widgets de terceros (n8n Chat)
+│   ├── hooks/          # Lógica de dominio encapsulada (useOrders, useMenu, useSales)
+│   ├── lib/            # Clientes y utilidades (Supabase Client)
+│   ├── types/          # Definiciones de TypeScript centralizadas
+│   └── context/        # Proveedores de estado global (Auth, Toast)
+├── android-app/        # Backend-compatible native app (Kotlin)
+├── supabase-schema.sql # Estructura y lógica de base de datos
+└── README.md
+```
 
-### 1. Preparación de Base de Datos (Supabase)
-Cada implementación requiere su propio proyecto en Supabase:
-1. Crea un nuevo proyecto en [Supabase](https://supabase.com).
-2. Abre el **SQL Editor** y ejecuta íntegramente el archivo `supabase-schema.sql` ubicado en la raíz de este repositorio. Esto creará las tablas, índices y lógica necesaria.
-3. En **Authentication > Users**, crea manualmente los usuarios necesarios para tu personal.
-4. Asigna los roles correspondientes de cada usuario en la tabla `profiles` (`admin`, `waiter`, `chef`, `cashier`).
+## 🚀 Instalación y Desarrollo
 
-### 2. Configuración del Servidor Web
-1. Crea un archivo `.env.local` basado en tus credenciales de Supabase:
-   ```env
-   NEXT_PUBLIC_SUPABASE_URL=tu_url_de_supabase
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_clave_anonima
-   ```
-2. Instala dependencias y compila:
-   ```bash
-   npm install
-   npm run build
-   npm run start
-   ```
+### 1. Configuración de Entorno
+Crea un archivo `.env.local`:
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+```
 
-### 3. Configuración de la App Android
-1. Abre el proyecto en **Android Studio**.
-2. Configura tus credenciales de Supabase en el archivo `local.properties` (Este archivo está excluido del control de versiones por seguridad).
-3. Genera el APK de producción:
-   ```bash
-   ./gradlew assembleRelease
-   ```
-
-## 🐳 Despliegue con Docker (Recomendado para Producción)
-
-Para garantizar la máxima compatibilidad con cualquier dominio y hosting que soporte contenedores, hemos incluido una configuración de Docker optimizada con Nginx.
-
-### Paso 1: Construir la Imagen
-Desde la raíz del proyecto, ejecuta:
+### 2. Ejecución
 ```bash
-docker build -t deliciasmoran-web .
+npm install
+npm run dev
 ```
 
-### Paso 2: Ejecutar el Contenedor
+## 🐳 Despliegue con Docker
 ```bash
-docker run -d -p 80:80 --name deliciasmoran deliciasmoran-web
-```
-La aplicación estará disponible en el puerto 80. La configuración interna de Nginx se encarga de servir los archivos estáticos y manejar el enrutamiento de la aplicación (SPA).
-
----
-
-## 📦 Estructura del Proyecto
-```
-deliciasmoran/
-├── src/                # Código fuente Web (Next.js)
-├── android-app/        # Aplicación Android nativa (Kotlin)
-├── public/             # Archivos estáticos
-├── Dockerfile          # Configuración de Docker para Web
-├── nginx.conf          # Configuración de servidor para Docker
-├── supabase-schema.sql # Estructura de base de datos
-└── README.md           # Documentación
+docker build -t restaurant-crm .
+docker run -d -p 80:80 --name restaurant-crm-app restaurant-crm
 ```
 
 ---
-Este proyecto ha sido optimizado para la eficiencia operativa en entornos de restauración real.
+Optimizado para entornos de alta demanda operativa. Basado en principios SOLID y diseño orientado a transacciones rápidas.
+

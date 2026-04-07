@@ -61,17 +61,6 @@ export default function LoginPage() {
 
                 <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
                     <div>
-                        {/* <label
-                            htmlFor="user"
-                            style={{
-                                display: "block",
-                                marginBottom: "0.5rem",
-                                fontWeight: "500",
-                                color: "var(--text-muted)"
-                            }}
-                        >
-                            Nombre de usuario o email
-                        </label> */}
                         <input
                             id="user"
                             type="text"
@@ -96,17 +85,6 @@ export default function LoginPage() {
                     </div>
 
                     <div>
-                        {/* <label
-                            htmlFor="password"
-                            style={{
-                                display: "block",
-                                marginBottom: "0.5rem",
-                                fontWeight: "500",
-                                color: "var(--text-muted)"
-                            }}
-                        >
-                            Contraseña
-                        </label> */}
                         <input
                             id="password"
                             type="password"
@@ -114,7 +92,6 @@ export default function LoginPage() {
                             onChange={(e) => setPassword(e.target.value)}
                             required
                             autoComplete="current-password"
-                            // placeholder="••••••••"
                             placeholder="Contraseña"
                             style={{
                                 width: "100%",
@@ -170,23 +147,7 @@ export default function LoginPage() {
                     </button>
                 </form>
 
-                <div style={{
-                    marginTop: "2rem",
-                    padding: "1rem",
-                    background: "rgba(59, 130, 246, 0.1)",
-                    borderRadius: "8px",
-                    fontSize: "0.85rem",
-                    color: "var(--text-muted)"
-                }}>
-                </div>
             </div>
-
-            <style jsx>{`
-                @keyframes spin {
-                    from { transform: rotate(0deg); }
-                    to { transform: rotate(360deg); }
-                }
-            `}</style>
         </div>
     );
 }
