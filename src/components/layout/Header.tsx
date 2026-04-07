@@ -18,8 +18,7 @@ import {
     Menu, 
     X
 } from "lucide-react";
-// Mantenemos Link por si lo necesitas en el futuro, pero usaremos <a> para forzar recargas
-import Link from "next/link"; 
+
 
 export function Header() {
     const { profile, signOut } = useAuth();
@@ -90,73 +89,6 @@ export function Header() {
 
     return (
         <>
-            {/* ESTILOS INYECTADOS PARA RESPONSIVIDAD */}
-            <style>{`
-                .header-container {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    padding: 1rem 1.5rem;
-                    background: rgba(15, 23, 42, 0.4);
-                    border-bottom: 1px solid var(--border);
-                    margin-bottom: 2rem;
-                    backdrop-filter: blur(12px);
-                    position: relative;
-                    z-index: 50;
-                }
-                .desktop-nav {
-                    display: flex;
-                    gap: 1.5rem;
-                }
-                .mobile-toggle {
-                    display: none;
-                    background: transparent;
-                    border: none;
-                    color: white;
-                    cursor: pointer;
-                    padding: 0.5rem;
-                }
-                .mobile-menu {
-                    display: none;
-                }
-                
-                /* MEDIA QUERY PARA CELULARES Y TABLETS PEQUEÑAS */
-                @media (max-width: 900px) {
-                    .header-container {
-                        padding: 1rem;
-                    }
-                    .header-title {
-                        font-size: 1.2rem !important;
-                    }
-                    .back-btn-text {
-                        display: none; /* Ocultamos la palabra "Volver" en celulares, dejamos solo el icono */
-                    }
-                    .desktop-nav {
-                        display: none !important; /* Escondemos menú de escritorio */
-                    }
-                    .nav-divider {
-                        display: none !important; /* Escondemos la línea divisoria */
-                    }
-                    .mobile-toggle {
-                        display: flex !important; /* Mostramos icono de hamburguesa */
-                        align-items: center;
-                    }
-                    .mobile-menu.open {
-                        display: flex;
-                        flex-direction: column;
-                        position: absolute;
-                        top: 100%;
-                        left: 0;
-                        right: 0;
-                        background: rgba(15, 23, 42, 0.98);
-                        border-bottom: 1px solid var(--border);
-                        padding: 1rem;
-                        gap: 1rem;
-                        box-shadow: 0 15px 30px rgba(0,0,0,0.5);
-                        z-index: 40;
-                    }
-                }
-            `}</style>
 
             <header className="header-container">
                 

@@ -3,18 +3,20 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
-import { useSupabase, Product } from "@/context/SupabaseProvider";
-import { Plus, Minus, ShoppingCart, LogOut, Loader2, Edit2, Trash2, Send, X, CheckCircle } from "lucide-react";
-import { RoleNavigation } from "@/components/RoleNavigation";
+
+import { Product } from "@/types";
+import { useOrders } from "@/hooks/useOrders";
+import { useMenu } from "@/hooks/useMenu";
+import { Plus, Minus, ShoppingCart, Loader2, Edit2, Trash2, Send, X, CheckCircle } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 import { Modal } from "@/components/ui/Modal";
-import { Header } from "@/components/Header";
+import { Header } from "@/components/layout/Header";
 
 export default function MeseroPage() {
     const { profile, loading: authLoading } = useAuth();
     const router = useRouter();
-    // const { products, createOrder, loading: supabaseLoading, orders, fetchProducts, updateOrder, deleteOrder, markOrderAsPaid, fetchOrders } = useSupabase();    
-    const { products, createOrder, loading: supabaseLoading, orders, fetchProducts, updateOrder, deleteOrder, updateOrderStatus, fetchOrders } = useSupabase();    
+    const { products, loadingMenu: supabaseLoading, fetchProducts } = useMenu();
+    const { orders, createOrder, updateOrder, deleteOrder, updateOrderStatus, fetchOrders } = useOrders();
     const toast = useToast();
     
     // Estados para la creación de una NUEVA orden

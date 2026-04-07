@@ -3,19 +3,28 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
-import { useSupabase, Order } from "@/context/SupabaseProvider";
-import { DollarSign, Loader2, Lock } from "lucide-react"; // Añadido icono de candadoimport { RoleNavigation } from "@/components/RoleNavigation";
-import { RoleNavigation } from "@/components/RoleNavigation";
+import { Order, PaymentType } from "@/types";
+import { supabase } from "@/lib/supabaseClient";
+import { useOrders } from "@/hooks/useOrders";
+import { Header } from "@/components/layout/Header";
+import { DollarSign, Loader2, Lock } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 import { Modal } from "@/components/ui/Modal";
-import { Header } from "@/components/Header";
 
 export default function CajeroPage() {
     const { profile, loading: authLoading } = useAuth();
     const router = useRouter();
-    //const { orders, updateOrderStatus, loading } = useSupabase();
-    const { orders, markOrderAsPaid, loading, paymentTypes } = useSupabase();
+    const { loadingOrders: loading, orders, markOrderAsPaid } = useOrders();
+    const [paymentTypes, setPaymentTypes] = useState<PaymentType[]>([]);
     const [confirmingPay, setConfirmingPay] = useState<string | null>(null);
+
+    useEffect(() => {
+        const fetchPT = async () => {
+            const { data } = await supabase.from('payment_type').select('*').order('id');
+            if (data) setPaymentTypes(data as PaymentType[]);
+        };
+        fetchPT();
+    }, []);
     const [paymentMethod, setPaymentMethod] = useState<number | "">(""); 
     const toast = useToast();
     
@@ -50,20 +59,17 @@ export default function CajeroPage() {
 
     // Filtramos las no pagadas y las ordenamos por fecha (las más recientes arriba)
     const unpaidOrders = orders
-        //.filter(o => o.status !== 'paid')
-        .filter(o => !o.is_paid) 
+        .filter(o => !o.is_paid)
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     if (loading) return <div className="container">Cargando...</div>;
 
     const handlePay = async () => {
-        // Aseguramos que tengan un método de pago seleccionado que no sea vacío
         if (confirmingPay && paymentMethod !== "") {
             try {
-                // await updateOrderStatus(confirmingPay, 'paid');
-                await markOrderAsPaid(confirmingPay, paymentMethod as number); 
+                await markOrderAsPaid(confirmingPay, paymentMethod as number);
                 setConfirmingPay(null);
-                setPaymentMethod(""); // Reseteamos a vacío para el próximo cobro
+                setPaymentMethod("");
                 toast("Pago registrado correctamente", "success");
             } catch (error) {
                 toast("Error al procesar el pago", "error");
