@@ -32,15 +32,6 @@ export default function RootLayout({
           src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"
           strategy="afterInteractive" 
         />
-        <Script id="emailjs-init" strategy="afterInteractive">
-          {`
-            (function(){
-                emailjs.init({
-                  publicKey: "YOUR_PUBLIC_KEY",
-                });
-            })();
-          `}
-        </Script>
       </body>
     </html>
   );

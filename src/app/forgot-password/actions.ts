@@ -1,4 +1,4 @@
-"use server"; // <-- ESTO ES VITAL
+"use server";
 
 import emailjs from '@emailjs/nodejs';
 import { supabase } from "@/lib/supabaseClient";
@@ -7,28 +7,36 @@ export async function handlePasswordResetRequest(identifier: string) {
     try {
         let targetEmail = identifier;
 
-        // 1. Buscar email si recibimos username (usando tu RPC existente)
+        // 1. Buscamos el email usando tu RPC de AuthContext
         if (!identifier.includes("@")) {
-            const { data: emailAsociado, error: searchError } = await supabase
+            // Usamos el nombre exacto de tu función en Supabase
+            const { data: emailAsociado, error: rpcError } = await supabase
                 .rpc('get_email_by_username', { p_username: identifier });
-            
-            if (searchError || !emailAsociado) return { error: "Usuario no encontrado" };
+
+            if (rpcError || !emailAsociado) {
+                // Si el RPC falla o no devuelve nada, el usuario no existe
+                return { error: "No pudimos encontrar un usuario con ese nombre." };
+            }
             targetEmail = emailAsociado;
         }
 
-        // 2. Insertar en la tabla password_resets
+        // 2. Insertar en la tabla de control (Verifica que creaste la tabla password_resets)
         const { data: resetData, error: insertError } = await supabase
             .from("password_resets")
             .insert([{ email: targetEmail }])
             .select("token")
             .single();
 
-        if (insertError) throw insertError;
+        if (insertError) {
+            console.error("Error BD:", insertError.message);
+            return { error: "Error de base de datos al generar el token." };
+        }
 
         // 3. Preparar Link
-        const resetLink = `${process.env.NEXT_PUBLIC_SITE_URL}/reset-password?token=${resetData.token}`;
+        const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+        const resetLink = `${baseUrl}/reset-password?token=${resetData.token}`;
 
-        // 4. Enviar con EmailJS (Server-side)
+        // 4. Enviar con EmailJS
         await emailjs.send(
             process.env.EMAILJS_SERVICE_ID!,
             process.env.EMAILJS_TEMPLATE_ID!,
@@ -45,7 +53,9 @@ export async function handlePasswordResetRequest(identifier: string) {
         return { success: true };
 
     } catch (error: any) {
-        console.error("Error en Reset Action:", error);
-        return { error: "No se pudo enviar el correo de recuperación." };
+        // Esto te dirá el error real de EmailJS en el cuadro rojo de tu pantalla
+        const errorMsg = error?.text || error?.message || "Error desconocido";
+        console.error("DETALLE:", error);
+        return { error: `Fallo de EmailJS: ${errorMsg}` };
     }
 }
