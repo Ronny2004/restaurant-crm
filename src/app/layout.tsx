@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import "@/app/globals.css"
+import Script from "next/script"; // Importar el componente optimizado
+import "@/app/globals.css";
 import { Providers } from "@/components/Providers";
 import { N8nChat } from "@/components/N8nChat";
 
@@ -25,6 +26,21 @@ export default function RootLayout({
           </Providers>
         </div>
         <N8nChat />
+
+        {/* Carga optimizada de scripts externos */}
+        <Script 
+          src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"
+          strategy="afterInteractive" 
+        />
+        <Script id="emailjs-init" strategy="afterInteractive">
+          {`
+            (function(){
+                emailjs.init({
+                  publicKey: "YOUR_PUBLIC_KEY",
+                });
+            })();
+          `}
+        </Script>
       </body>
     </html>
   );

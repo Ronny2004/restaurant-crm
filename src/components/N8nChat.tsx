@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
-import './n8n-chat.css';
+import '@n8n/chat/dist/style.css';
 
 export const N8nChat = () => {
     const pathname = usePathname();
@@ -13,7 +13,17 @@ export const N8nChat = () => {
             import('@n8n/chat').then(({ createChat }) => {
                 createChat({
                     webhookUrl: 'https://melodyai.app.n8n.cloud/webhook/c0edce0b-4e82-4438-9ef8-c7c3c94b6db9/chat', // ¡No olvides poner tu URL!
+                    webhookConfig: {
+                        method: 'POST',
+                        headers: {}
+                    },
                     target: '#n8n-chat',
+                    // 👇 AQUÍ ESTABA "mode: 'window',". YA LO ELIMINAMOS 👇
+                    chatInputKey: 'chatInput',
+                    chatSessionKey: 'sessionId',
+                    loadPreviousSession: true,
+                    metadata: {},
+                    showWelcomeScreen: false,
                     defaultLanguage: 'es',
                     initialMessages: [
                         'Hola! 👋',

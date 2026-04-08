@@ -13,6 +13,7 @@
   "dependencies": {
     "@capacitor/android": "^6.2.0",
     "@capacitor/core": "^6.2.0",
+    "@emailjs/nodejs": "^5.0.2",
     "@n8n/chat": "^1.14.0",
     "@supabase/supabase-js": "^2.86.2",
     "clsx": "^2.1.1",

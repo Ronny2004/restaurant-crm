@@ -171,13 +171,22 @@ export default function LoginPage() {
                 </form>
 
                 <div style={{
-                    marginTop: "2rem",
-                    padding: "1rem",
-                    background: "rgba(59, 130, 246, 0.1)",
-                    borderRadius: "8px",
-                    fontSize: "0.85rem",
-                    color: "var(--text-muted)"
+                    marginTop: "1.5rem",
+                    textAlign: "center",
+                    fontSize: "0.9rem",
                 }}>
+                    <a 
+                        href="/forgot-password" 
+                        style={{ 
+                            color: "var(--primary)", 
+                            textDecoration: "none",
+                            transition: "opacity 0.2s"
+                        }}
+                        onMouseOver={(e) => e.currentTarget.style.opacity = "0.8"}
+                        onMouseOut={(e) => e.currentTarget.style.opacity = "1"}
+                    >
+                        ¿Olvidaste tu contraseña?
+                    </a>
                 </div>
             </div>
 
