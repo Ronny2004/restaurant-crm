@@ -3,27 +3,30 @@
 import { useEffect, useState, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
-import { useSupabase, Product } from "@/context/SupabaseProvider";
+
+import { Product } from "@/types";
+import { useMenu } from "@/hooks/useMenu";
+import { useOrders } from "@/hooks/useOrders";
 import Link from "next/link";
 import { 
-    ChevronLeft, TrendingUp, Package, Users, 
-    DollarSign, LogOut, Loader2, Plus, 
+    TrendingUp, Package, Users, 
+    DollarSign, Loader2, Plus, 
     Edit2, Trash2, X, Check, ImageIcon 
 } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 import { Modal } from "@/components/ui/Modal";
-import { Header } from "@/components/Header";
+import { Header } from "@/components/layout/Header";
 
 export default function AdminPage() {
     const { profile, loading: authLoading, signOut } = useAuth();
     const router = useRouter();
     const { 
-        products, orders, loading, 
-        // fetchProducts, <--- Eliminado para evitar bucles, el Provider ya lo hace
+        products, loadingMenu,
         createProduct, 
         updateProduct, 
         deleteProduct 
-    } = useSupabase();
+    } = useMenu();
+    const { orders } = useOrders();
     const toast = useToast();
 
     // Estados de UI
@@ -49,9 +52,7 @@ export default function AdminPage() {
                 <Loader2 size={48} style={{ animation: "spin 1s linear infinite", color: "var(--primary)" }} />
             </div>
         );
-    }
-
-    // Cálculos de Estadísticas
+    }    // Cálculos de Estadísticas
     const totalSales = orders
         .filter(o => o.is_paid) 
         .reduce((sum, o) => sum + (o.total || 0), 0); // Seguro contra totales nulos

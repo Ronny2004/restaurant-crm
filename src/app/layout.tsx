@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import Script from "next/script"; // Importar el componente optimizado
-import "@/app/globals.css";
-import { Providers } from "@/components/Providers";
-import { N8nChat } from "@/components/N8nChat";
+import "@/app/globals.css"
+import { Providers } from "@/components/layout/Providers";
+import { N8nChatWidget } from "@/components/integrations/N8nChatWidget";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -25,13 +24,7 @@ export default function RootLayout({
             {children}
           </Providers>
         </div>
-        <N8nChat />
-
-        {/* Carga optimizada de scripts externos */}
-        <Script 
-          src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"
-          strategy="afterInteractive" 
-        />
+        <N8nChatWidget />
       </body>
     </html>
   );

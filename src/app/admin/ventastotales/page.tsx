@@ -1,14 +1,14 @@
 "use client";
 import { useState, useMemo, useEffect } from "react";
-import { useSupabase } from "@/context/SupabaseProvider";
+import { useSalesReports } from "@/hooks/useSalesReports";
 import { ChevronLeft, Calendar as CalendarIcon, RefreshCcw, Plus, X, Filter, Download, ArrowUpDown } from "lucide-react";
 import Link from "next/link";
-import { Header } from "@/components/Header";
+import { Header } from "@/components/layout/Header";
 
 // Definimos la estructura del nuevo bloque de filtros
 type FilterCategory = 'fecha' | 'estado' | 'monto' | 'usuario' | 'tipo_pago' | '';
 type DateFilterType = 'day' | 'month' | 'year' | 'range' | 'all';
-type StatusFilterType = 'pending' | 'preparing' | 'served' | 'ready' | 'paid' | 'canceled' | 'all'; 
+type StatusFilterType = 'pending' | 'preparing' | 'served' | 'ready' | 'paid' | 'canceled' | 'all';
 type AmountFilterType = 'mayor' | 'menor' | 'rango' | 'all';
 type UserRoleFilterType = 'any' | 'mesero' | 'cocinero' | 'cajero' | 'cancelado_por';
 
@@ -32,16 +32,16 @@ interface FilterBlock {
 }
 
 // Componente Multi-Select nativo (CSS blindado)
-const MultiSelectDropdown = ({ 
-    options, 
-    selectedValues, 
-    onChange, 
-    placeholder 
-}: { 
-    options: { label: string, value: string }[], 
-    selectedValues: string[], 
-    onChange: (vals: string[]) => void, 
-    placeholder: string 
+const MultiSelectDropdown = ({
+    options,
+    selectedValues,
+    onChange,
+    placeholder
+}: {
+    options: { label: string, value: string }[],
+    selectedValues: string[],
+    onChange: (vals: string[]) => void,
+    placeholder: string
 }) => {
     const [isOpen, setIsOpen] = useState(false);
 
@@ -55,39 +55,39 @@ const MultiSelectDropdown = ({
 
     return (
         <div style={{ position: 'relative', width: '100%' }}>
-            <div 
-                onClick={() => setIsOpen(!isOpen)} 
-                className="btn btn-secondary" 
+            <div
+                onClick={() => setIsOpen(!isOpen)}
+                className="btn btn-secondary"
                 style={{ background: "rgba(14, 26, 94, 0.66)", padding: "0.5rem", border: "1px solid var(--border)", fontSize: "0.9rem", color: "white", display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', height: '100%' }}
             >
                 <span>{selectedValues.length === 0 ? placeholder : `${selectedValues.length} seleccionados`}</span>
                 <span style={{ fontSize: '0.8rem' }}>▼</span>
             </div>
-            
+
             {isOpen && (
-                <div style={{ 
-                    position: 'absolute', top: '105%', left: 0, zIndex: 9999, 
-                    background: '#0f172a', border: "1px solid var(--border)", 
-                    borderRadius: "8px", padding: "0.5rem", width: '100%', 
-                    maxHeight: "250px", overflowY: "auto", 
+                <div style={{
+                    position: 'absolute', top: '105%', left: 0, zIndex: 9999,
+                    background: '#0f172a', border: "1px solid var(--border)",
+                    borderRadius: "8px", padding: "0.5rem", width: '100%',
+                    maxHeight: "250px", overflowY: "auto",
                     boxShadow: "0 10px 25px rgba(0, 0, 0, 0.8)",
                     display: 'flex', flexDirection: 'column'
                 }}>
                     {options.map(opt => (
-                        <label 
-                            key={opt.value} 
-                            style={{ 
-                                display: 'flex', alignItems: 'center', justifyContent: 'flex-start', 
-                                gap: '10px', padding: '8px', cursor: 'pointer', color: 'white', 
+                        <label
+                            key={opt.value}
+                            style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'flex-start',
+                                gap: '10px', padding: '8px', cursor: 'pointer', color: 'white',
                                 borderRadius: '4px', margin: 0, width: '100%', boxSizing: 'border-box'
-                            }} 
-                            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'} 
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
                             onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                         >
-                            <input 
-                                type="checkbox" 
-                                checked={selectedValues.includes(opt.value)} 
-                                onChange={() => toggleOption(opt.value)} 
+                            <input
+                                type="checkbox"
+                                checked={selectedValues.includes(opt.value)}
+                                onChange={() => toggleOption(opt.value)}
                                 style={{ margin: 0, cursor: 'pointer', width: '16px', height: '16px' }}
                             />
                             <span style={{ fontSize: '0.9rem', textAlign: 'left' }}>
@@ -97,7 +97,7 @@ const MultiSelectDropdown = ({
                     ))}
                 </div>
             )}
-            
+
             {/* Overlay invisible para cerrar al hacer clic afuera */}
             {isOpen && <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9998 }} onClick={() => setIsOpen(false)} />}
         </div>
@@ -105,7 +105,7 @@ const MultiSelectDropdown = ({
 };
 
 export default function VentasTotalesPage() {
-    const { reportes } = useSupabase(); 
+    const { reportes } = useSalesReports();
 
     const [filters, setFilters] = useState<FilterBlock[]>([{
         id: Date.now().toString(),
@@ -148,7 +148,7 @@ export default function VentasTotalesPage() {
             cajero: r.cajero || '-',
             cancelado_por: r.cancelado_por || '-',
             status: r.estado,
-            is_paid: r.cajero !== '-', 
+            is_paid: r.cajero !== '-',
             total: Number(r.monto) || 0,
             tipo_pago: r.tipo_pago || '-'
         }));
@@ -161,12 +161,12 @@ export default function VentasTotalesPage() {
     }, [ventas]);
 
     const traducirEstado = (status: string) => {
-        switch(status) {
+        switch (status) {
             case 'pending': return 'Pendiente';
             case 'preparing': return 'Preparando';
             case 'served': return 'Sirviendo';
             case 'ready': return 'Servido';
-            case 'canceled': return 'Cancelado/Eliminado'; 
+            case 'canceled': return 'Cancelado/Eliminado';
             default: return status;
         }
     };
@@ -181,7 +181,7 @@ export default function VentasTotalesPage() {
             selectedYear: new Date().getFullYear().toString(),
             startDate: '',
             endDate: '',
-            statusAction: 'include', 
+            statusAction: 'include',
             statusValues: [],
             amountType: 'all',
             amountMin: '',
@@ -202,7 +202,7 @@ export default function VentasTotalesPage() {
 
     const filteredSales = useMemo(() => {
         return ventas.filter(order => {
-            
+
             const orderDate = new Date(order.created_at);
 
             for (const f of filters) {
@@ -219,16 +219,16 @@ export default function VentasTotalesPage() {
                         const end = new Date(f.endDate + "T23:59:59");
                         if (orderDate < start || orderDate > end) return false;
                     }
-                } 
+                }
                 else if (f.category === 'estado') {
                     if (f.statusValues.length > 0) {
                         const currentStatus = order.is_paid ? 'paid' : order.status;
                         const isSelected = f.statusValues.includes(currentStatus);
 
                         if (f.statusAction === 'include' && !isSelected) {
-                            return false; 
+                            return false;
                         } else if (f.statusAction === 'exclude' && isSelected) {
-                            return false; 
+                            return false;
                         }
                     }
                 }
@@ -246,13 +246,13 @@ export default function VentasTotalesPage() {
                 else if (f.category === 'usuario') {
                     if (f.userNameInput.trim() !== '') {
                         const searchTerm = f.userNameInput.toLowerCase().trim();
-                        
+
                         if (f.userRoleType === 'any') {
                             const matchMesero = order.mesero.toLowerCase().includes(searchTerm);
                             const matchCocinero = order.cocinero.toLowerCase().includes(searchTerm);
                             const matchCajero = order.cajero.toLowerCase().includes(searchTerm);
                             const matchCancelado = order.cancelado_por.toLowerCase().includes(searchTerm);
-                            
+
                             if (!matchMesero && !matchCocinero && !matchCajero && !matchCancelado) return false;
                         } else {
                             const targetField = String(order[f.userRoleType] || '').toLowerCase();
@@ -267,14 +267,14 @@ export default function VentasTotalesPage() {
                     }
                 }
             }
-            return true; 
+            return true;
         });
-    }, [ventas, filters]); 
+    }, [ventas, filters]);
 
     // Lista ordenada (Asegurándonos de que esté debajo de filteredSales para que funcione correctamente)
     const sortedSales = useMemo(() => {
         let sortableItems = [...filteredSales];
-        
+
         if (sortConfig !== null) {
             sortableItems.sort((a: any, b: any) => {
                 if (a[sortConfig.key] < b[sortConfig.key]) {
@@ -314,11 +314,11 @@ export default function VentasTotalesPage() {
 
         worksheet.addTable({
             name: 'TablaDeVentas',
-            ref: 'A1', 
+            ref: 'A1',
             headerRow: true,
-            totalsRow: false, 
+            totalsRow: false,
             style: {
-                theme: 'TableStyleMedium2', 
+                theme: 'TableStyleMedium2',
                 showRowStripes: true,
             },
             columns: [
@@ -350,18 +350,18 @@ export default function VentasTotalesPage() {
         worksheet.getColumn(9).numFmt = '"$"#,##0.00';
         worksheet.views = [{ state: "frozen", ySplit: 1 }];
 
-        const totalRowNumber = tableRows.length + 2; 
+        const totalRowNumber = tableRows.length + 2;
         const totalRow = worksheet.getRow(totalRowNumber);
-        
+
         totalRow.getCell(1).value = "TOTAL GENERAL";
         totalRow.getCell(9).value = parseFloat(totalCalculado.toFixed(2));
-        
+
         totalRow.font = { bold: true };
-        totalRow.eachCell((cell) => {
+        totalRow.eachCell((cell: any) => {
             cell.fill = {
                 type: "pattern",
                 pattern: "solid",
-                fgColor: { argb: "E7E6E6" } 
+                fgColor: { argb: "E7E6E6" }
             };
             cell.border = {
                 top: { style: "medium" },
@@ -387,16 +387,16 @@ export default function VentasTotalesPage() {
 
             <div className="glass-panel" style={{ padding: "0.75rem", marginBottom: "1.5rem", borderRadius: "12px", position: "relative", zIndex: 20 }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                    
+
                     <h3 style={{ display: "flex", alignItems: "center", gap: "0.5rem", margin: "0.5rem 0", fontSize: "1.1rem" }}>
                         <Filter size={20} /> Panel de Control de Filtros
                     </h3>
 
                     {filters.map((f, index) => (
                         <div key={f.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 2fr 40px", gap: "1rem", alignItems: "center", padding: "0.75rem", background: "rgba(255,255,255,0.02)", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.05)" }}>
-                            
-                            <select 
-                                value={f.category} 
+
+                            <select
+                                value={f.category}
                                 onChange={(e) => updateFilter(f.id, 'category', e.target.value)}
                                 className="btn btn-secondary"
                                 style={{ background: "rgba(14, 26, 94, 0.66)", padding: "0.5rem", border: "1px solid var(--border)", fontSize: "0.9rem", color: "white" }}
@@ -411,8 +411,8 @@ export default function VentasTotalesPage() {
 
                             {/* SELECTORES DE FECHA */}
                             {f.category === 'fecha' && (
-                                <select 
-                                    value={f.dateType} 
+                                <select
+                                    value={f.dateType}
                                     onChange={(e) => updateFilter(f.id, 'dateType', e.target.value)}
                                     className="btn btn-secondary"
                                     style={{ background: "rgba(14, 26, 94, 0.66)", padding: "0.5rem", border: "1px solid var(--border)", fontSize: "0.9rem", color: "white" }}
@@ -434,8 +434,8 @@ export default function VentasTotalesPage() {
                                         </select>
                                     )}
                                     {f.dateType === 'range' && (
-                                        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", width: "100%"  }}>
-                                            <input type="date" value={f.startDate} onChange={(e) => updateFilter(f.id, 'startDate', e.target.value)} className="btn btn-secondary" style={{ color: "white", padding: "0.4rem"}} />
+                                        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", width: "100%" }}>
+                                            <input type="date" value={f.startDate} onChange={(e) => updateFilter(f.id, 'startDate', e.target.value)} className="btn btn-secondary" style={{ color: "white", padding: "0.4rem" }} />
                                             <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>a</span>
                                             <input type="date" value={f.endDate} onChange={(e) => updateFilter(f.id, 'endDate', e.target.value)} className="btn btn-secondary" style={{ color: "white", padding: "0.4rem" }} />
                                         </div>
@@ -445,8 +445,8 @@ export default function VentasTotalesPage() {
 
                             {/* SELECTORES DE ESTADO */}
                             {f.category === 'estado' && (
-                                <select 
-                                    value={f.statusAction} 
+                                <select
+                                    value={f.statusAction}
                                     onChange={(e) => updateFilter(f.id, 'statusAction', e.target.value)}
                                     className="btn btn-secondary"
                                     style={{ background: "rgba(14, 26, 94, 0.66)", padding: "0.5rem", border: "1px solid var(--border)", fontSize: "0.9rem", color: "white" }}
@@ -456,7 +456,7 @@ export default function VentasTotalesPage() {
                                 </select>
                             )}
                             {f.category === 'estado' && (
-                                <MultiSelectDropdown 
+                                <MultiSelectDropdown
                                     placeholder="Seleccionar estados..."
                                     selectedValues={f.statusValues}
                                     onChange={(vals) => updateFilter(f.id, 'statusValues', vals)}
@@ -473,8 +473,8 @@ export default function VentasTotalesPage() {
 
                             {/* SELECTORES DE MONTO */}
                             {f.category === 'monto' && (
-                                <select 
-                                    value={f.amountType} 
+                                <select
+                                    value={f.amountType}
                                     onChange={(e) => updateFilter(f.id, 'amountType', e.target.value)}
                                     className="btn btn-secondary"
                                     style={{ background: "rgba(14, 26, 94, 0.66)", padding: "0.5rem", border: "1px solid var(--border)", fontSize: "0.9rem", color: "white" }}
@@ -489,9 +489,9 @@ export default function VentasTotalesPage() {
                                 <div style={{ display: "flex", gap: "0.8rem", alignItems: "center" }}>
                                     {f.amountType === 'rango' && (
                                         <>
-                                            <input type="number" placeholder="Min" value={f.amountMin} onChange={(e) => updateFilter(f.id, 'amountMin', e.target.value)} className="btn btn-secondary i-white" style={{ color: "white", textAlign: "center", padding: "0.4rem"}} />
+                                            <input type="number" placeholder="Min" value={f.amountMin} onChange={(e) => updateFilter(f.id, 'amountMin', e.target.value)} className="btn btn-secondary i-white" style={{ color: "white", textAlign: "center", padding: "0.4rem" }} />
                                             <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>a</span>
-                                            <input type="number" placeholder="Max" value={f.amountMax} onChange={(e) => updateFilter(f.id, 'amountMax', e.target.value)} className="btn btn-secondary i-white" style={{ color: "white", textAlign: "center", padding: "0.4rem"}} />
+                                            <input type="number" placeholder="Max" value={f.amountMax} onChange={(e) => updateFilter(f.id, 'amountMax', e.target.value)} className="btn btn-secondary i-white" style={{ color: "white", textAlign: "center", padding: "0.4rem" }} />
                                         </>
                                     )}
                                 </div>
@@ -499,8 +499,8 @@ export default function VentasTotalesPage() {
 
                             {/* SELECTOR DE USUARIO */}
                             {f.category === 'usuario' && (
-                                <select 
-                                    value={f.userRoleType} 
+                                <select
+                                    value={f.userRoleType}
                                     onChange={(e) => updateFilter(f.id, 'userRoleType', e.target.value)}
                                     className="btn btn-secondary"
                                     style={{ background: "rgba(14, 26, 94, 0.66)", padding: "0.5rem", border: "1px solid var(--border)", fontSize: "0.9rem", color: "white" }}
@@ -514,20 +514,20 @@ export default function VentasTotalesPage() {
                             )}
                             {f.category === 'usuario' && (
                                 <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", width: "100%" }}>
-                                    <input 
-                                        type="text" 
-                                        placeholder="Escriba el nombre o usuario..." 
-                                        value={f.userNameInput} 
-                                        onChange={(e) => updateFilter(f.id, 'userNameInput', e.target.value)} 
-                                        className="btn btn-secondary i-white" 
-                                        style={{ color: "white", padding: "0.4rem", width: "100%"}} 
+                                    <input
+                                        type="text"
+                                        placeholder="Escriba el nombre o usuario..."
+                                        value={f.userNameInput}
+                                        onChange={(e) => updateFilter(f.id, 'userNameInput', e.target.value)}
+                                        className="btn btn-secondary i-white"
+                                        style={{ color: "white", padding: "0.4rem", width: "100%" }}
                                     />
                                 </div>
                             )}
 
                             {/* SELECTORES DE TIPO DE PAGO */}
                             {f.category === 'tipo_pago' && (
-                                <MultiSelectDropdown 
+                                <MultiSelectDropdown
                                     placeholder="Seleccionar tipos..."
                                     selectedValues={f.paymentValues}
                                     onChange={(vals) => updateFilter(f.id, 'paymentValues', vals)}
@@ -544,10 +544,10 @@ export default function VentasTotalesPage() {
                             {f.category === '' && <div />}
 
                             {filters.length > 1 && (
-                                <button 
-                                    onClick={() => removeFilter(f.id)} 
-                                    className="btn btn-danger" 
-                                    style={{ padding: "0.4rem", borderRadius: "8px", background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.2)" }} 
+                                <button
+                                    onClick={() => removeFilter(f.id)}
+                                    className="btn btn-danger"
+                                    style={{ padding: "0.4rem", borderRadius: "8px", background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.2)" }}
                                     title="Quitar este filtro"
                                 >
                                     <X size={16} />
@@ -558,13 +558,13 @@ export default function VentasTotalesPage() {
 
                     {filters.length < 3 && !filters.some(f => f.category === "") && (
                         <div>
-                            <button 
+                            <button
                                 onClick={addFilter}
                                 className="btn btn-primary"
-                                style={{ 
-                                    display: "inline-flex", 
-                                    alignItems: "center", 
-                                    gap: "0.5rem", 
+                                style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "0.5rem",
                                     background: "rgba(34, 197, 94, 0.2)",
                                     color: "#4ade80",
                                     border: "1px solid rgba(34, 197, 94, 0.4)",
@@ -580,19 +580,19 @@ export default function VentasTotalesPage() {
 
             <div className="glass-panel" style={{ padding: "0", borderRadius: "12px" }}>
                 <div style={{ padding: "1rem", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
-                    
+
                     <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                         <span style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>{sortedSales.length} transacciones encontradas</span>
-                        
-                        <button 
-                            onClick={handleExportExcel} 
+
+                        <button
+                            onClick={handleExportExcel}
                             disabled={sortedSales.length === 0}
                             title={sortedSales.length === 0 ? "Bloqueado: No existe ninguna venta" : "Realizar Reporte"}
                             className="btn btn-primary"
-                            style={{ 
-                                display: "flex", 
-                                alignItems: "center", 
-                                gap: "0.5rem", 
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "0.5rem",
                                 padding: "0.4rem 1rem",
                                 fontSize: "0.9rem",
                                 opacity: sortedSales.length === 0 ? 0.5 : 1,
@@ -665,20 +665,20 @@ export default function VentasTotalesPage() {
                                                 borderRadius: "99px",
                                                 fontSize: "0.8rem",
                                                 fontWeight: "500",
-                                                background: sale.is_paid 
-                                                    ? "rgba(34, 197, 94, 0.2)" 
+                                                background: sale.is_paid
+                                                    ? "rgba(34, 197, 94, 0.2)"
                                                     : sale.status === 'canceled'
-                                                        ? "rgba(239, 68, 68, 0.2)" 
-                                                    : sale.status === 'ready' || sale.status === 'served'
-                                                        ? "rgba(59, 130, 246, 0.2)" // Azulito p/ listo/servido
-                                                        : "rgba(234, 179, 8, 0.2)", // Amarillo p/ pendiente
-                                                color: sale.is_paid 
-                                                    ? "#4ade80" 
+                                                        ? "rgba(239, 68, 68, 0.2)"
+                                                        : sale.status === 'ready' || sale.status === 'served'
+                                                            ? "rgba(59, 130, 246, 0.2)" // Azulito p/ listo/servido
+                                                            : "rgba(234, 179, 8, 0.2)", // Amarillo p/ pendiente
+                                                color: sale.is_paid
+                                                    ? "#4ade80"
                                                     : sale.status === 'canceled'
-                                                        ? "#ef4444" 
-                                                    : sale.status === 'ready' || sale.status === 'served'
-                                                        ? "#60a5fa"
-                                                        : "#eab308"
+                                                        ? "#ef4444"
+                                                        : sale.status === 'ready' || sale.status === 'served'
+                                                            ? "#60a5fa"
+                                                            : "#eab308"
                                             }}>
                                                 {sale.is_paid ? "Pagado" : traducirEstado(sale.status)}
                                             </span>

@@ -16,12 +16,7 @@ export function Toast({ message, type, isVisible, onClose }: ToastProps) {
     const [isExiting, setIsExiting] = useState(false);
 
     useEffect(() => {
-        if (isVisible) {
-            const timer = setTimeout(() => {
-                handleClose();
-            }, 3000);
-            return () => clearTimeout(timer);
-        }
+        // Timer handled by ToastContext
     }, [isVisible]);
 
     const handleClose = () => {
