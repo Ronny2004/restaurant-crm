@@ -38,6 +38,8 @@ export default function CajeroPage() {
                 return { text: 'En Cocina', bg: 'rgba(249, 115, 22, 0.2)', color: '#f97316' }; // Naranja
             case 'pending':
                 return { text: 'En Espera', bg: 'rgba(234, 179, 8, 0.2)', color: '#eab308' }; // Amarillo
+            case 'editing':
+                return { text: 'Editando...', bg: 'rgba(255, 255, 255, 0.1)', color: 'var(--text-muted)' }; // Gris claro
             default:
                 return { text: 'Opción invalida', bg: 'rgba(234, 179, 8, 0.2)', color: '#eab308' }; // Amarillo
         }
@@ -100,7 +102,7 @@ export default function CajeroPage() {
                         ) : (
                             unpaidOrders.map((order) => {
                                 // Administradores pueden cobrar siempre, cajeros solo si la comida ya fue servida
-                                const canPay = profile.role === 'admin' || order.status === 'ready';
+                                const canPay = order.status !== 'editing' && (profile.role === 'admin' || order.status === 'ready');
                                 const statusConfig = getStatusConfig(order.status);
 
                                 return (

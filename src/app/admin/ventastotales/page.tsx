@@ -8,7 +8,7 @@ import { Header } from "@/components/layout/Header";
 // Definimos la estructura del nuevo bloque de filtros
 type FilterCategory = 'fecha' | 'estado' | 'monto' | 'usuario' | 'tipo_pago' | '';
 type DateFilterType = 'day' | 'month' | 'year' | 'range' | 'all';
-type StatusFilterType = 'pending' | 'preparing' | 'served' | 'ready' | 'paid' | 'canceled' | 'all';
+type StatusFilterType = 'pending' | 'preparing' | 'served' | 'ready' | 'paid' | 'canceled' | 'editing' | 'all'; // Añadido 'editing'
 type AmountFilterType = 'mayor' | 'menor' | 'rango' | 'all';
 type UserRoleFilterType = 'any' | 'mesero' | 'cocinero' | 'cajero' | 'cancelado_por';
 
@@ -153,7 +153,7 @@ export default function VentasTotalesPage() {
             tipo_pago: r.tipo_pago || '-'
         }));
     }, [reportes]);
-
+    
     const availableYears = useMemo(() => {
         const years = ventas.map(o => new Date(o.created_at).getFullYear());
         const uniqueYears = Array.from(new Set(years)).sort((a, b) => b - a);
@@ -167,6 +167,7 @@ export default function VentasTotalesPage() {
             case 'served': return 'Sirviendo';
             case 'ready': return 'Servido';
             case 'canceled': return 'Cancelado/Eliminado';
+            case 'editing': return 'Editando...';
             default: return status;
         }
     };
@@ -223,7 +224,7 @@ export default function VentasTotalesPage() {
                 else if (f.category === 'estado') {
                     if (f.statusValues.length > 0) {
                         const currentStatus = order.is_paid ? 'paid' : order.status;
-                        const isSelected = f.statusValues.includes(currentStatus);
+                        const isSelected = f.statusValues.includes(currentStatus) || (f.statusValues.includes('editing'));
 
                         if (f.statusAction === 'include' && !isSelected) {
                             return false;
@@ -466,7 +467,8 @@ export default function VentasTotalesPage() {
                                         { label: 'Sirviendo', value: 'served' },
                                         { label: 'Servido', value: 'ready' },
                                         { label: 'Pagado', value: 'paid' },
-                                        { label: 'Cancelado/Eliminado', value: 'canceled' }
+                                        { label: 'Cancelado/Eliminado', value: 'canceled' },
+                                        { label: 'Editando...', value: 'editing' }
                                     ]}
                                 />
                             )}
@@ -669,16 +671,20 @@ export default function VentasTotalesPage() {
                                                     ? "rgba(34, 197, 94, 0.2)"
                                                     : sale.status === 'canceled'
                                                         ? "rgba(239, 68, 68, 0.2)"
-                                                        : sale.status === 'ready' || sale.status === 'served'
-                                                            ? "rgba(59, 130, 246, 0.2)" // Azulito p/ listo/servido
-                                                            : "rgba(234, 179, 8, 0.2)", // Amarillo p/ pendiente
+                                                        : sale.status === 'editing'
+                                                            ? "rgba(255, 255, 255, 0.1)" // Grisáceo para edición
+                                                            : sale.status === 'ready' || sale.status === 'served'
+                                                                ? "rgba(59, 130, 246, 0.2)" // Azulito p/ listo/servido
+                                                                : "rgba(234, 179, 8, 0.2)", // Amarillo p/ pendiente
                                                 color: sale.is_paid
                                                     ? "#4ade80"
                                                     : sale.status === 'canceled'
                                                         ? "#ef4444"
-                                                        : sale.status === 'ready' || sale.status === 'served'
-                                                            ? "#60a5fa"
-                                                            : "#eab308"
+                                                        : sale.status === 'editing'
+                                                            ? "var(--text-muted)" // Texto atenuado para edición
+                                                            : sale.status === 'ready' || sale.status === 'served'
+                                                                ? "#60a5fa"
+                                                                : "#eab308"
                                             }}>
                                                 {sale.is_paid ? "Pagado" : traducirEstado(sale.status)}
                                             </span>

@@ -18,7 +18,7 @@ export type OrderItem = {
 export type Order = {
     id: string;
     table_number: string;
-    status: "pending" | "preparing" | "served" | "ready";
+    status: "pending" | "preparing" | "served" | "ready" | "editing";
     status_id: number;
     status_description?: string;
     is_paid: boolean;

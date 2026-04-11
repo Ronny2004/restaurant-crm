@@ -3,11 +3,12 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
 
 import { Product } from "@/types";
 import { useOrders } from "@/hooks/useOrders";
 import { useMenu } from "@/hooks/useMenu";
-import { Plus, Minus, ShoppingCart, Loader2, Edit2, Trash2, Send, X, CheckCircle } from "lucide-react";
+import { Plus, Minus, ShoppingCart, Loader2, Edit2, Trash2, Send, X, CheckCircle, Unlock } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 import { Modal } from "@/components/ui/Modal";
 import { Header } from "@/components/layout/Header";
@@ -31,7 +32,9 @@ export default function MeseroPage() {
     const [editingOrder, setEditingOrder] = useState<any | null>(null);
     const [editCart, setEditCart] = useState<any[]>([]);
     const [selectedProductToAdd, setSelectedProductToAdd] = useState<string>("");
+    const [originalStatus, setOriginalStatus] = useState<any>(null); // NUEVO ESTADO
 
+    // 1. useEffect (Control de acceso y carga de productos)
     useEffect(() => {
         if (!authLoading && (!profile || (profile.role !== "waiter" && profile.role !== "admin"))) {
             router.push("/login");
@@ -40,6 +43,20 @@ export default function MeseroPage() {
             fetchProducts();
         }
     }, [authLoading, profile, router, products.length, fetchProducts]);
+
+    // 2. useEffect (Guardián contra F5 / Recarga accidental)
+    useEffect(() => {
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            // Si el mesero tiene un modal abierto (editando o eliminando), lanzamos la alerta
+            if (editingOrder || deletingOrder) {
+                e.preventDefault();
+                e.returnValue = ""; // Esto activa la ventana de advertencia nativa del navegador
+            }
+        };
+
+        window.addEventListener("beforeunload", handleBeforeUnload);
+        return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+    }, [editingOrder, deletingOrder]);
 
     const productosDisponibles = products.filter(p => p.stock > 0);
 
@@ -99,10 +116,70 @@ export default function MeseroPage() {
     };
 
     // --- FUNCIONES PARA EDITAR ORDEN EXISTENTE ---
-    const openEditModal = (order: any) => {
-        setEditingOrder(order);
-        setEditCart(order.items ? [...order.items] : []);
-        setSelectedProductToAdd("");
+    // --- FUNCIÓN UNIFICADA PARA ABRIR Y BLOQUEAR ---
+    const openLockedModal = async (order: any, action: 'edit' | 'delete') => {
+        setSubmitting(true);
+        try {
+            // 1. Bloqueo en la tabla principal (orders)
+            const { error: errorOrders } = await supabase
+                .from('orders') 
+                .update({ status_id: 6 })
+                .eq('id', order.id);
+
+            if (errorOrders) throw errorOrders;
+
+            // 2. Bloqueo en la tabla de reportes (Sincronización)
+            const { error: errorReporte } = await supabase
+                .from('reporte_ventas')
+                .update({ estado: 'editing' })
+                .eq('pedido_id', order.id);
+
+            if (errorReporte) console.warn("Error visual en reporte:", errorReporte);
+
+            // 3. Guardamos el estado previo para poder restaurarlo después
+            setOriginalStatus(order.status_id);
+
+            // 4. Abrimos el modal correcto
+            if (action === 'edit') {
+                setEditingOrder(order);
+                setEditCart(order.items ? [...order.items] : []);
+                setSelectedProductToAdd("");
+            } else if (action === 'delete') {
+                setDeletingOrder({ id: order.id, table_number: order.table_number });
+            }
+
+            fetchOrders(); // Refrescamos la UI para que los demás vean "Editando..."
+        } catch (error) {
+            console.error("Error al bloquear:", error);
+            toast("No se pudo bloquear el pedido.", "error");
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    // --- FUNCIÓN UNIFICADA PARA CERRAR Y DESBLOQUEAR (SI SE CANCELA) ---
+    const closeLockedModal = async (action: 'edit' | 'delete') => {
+        setSubmitting(true);
+        const orderId = action === 'edit' ? editingOrder?.id : deletingOrder?.id;
+
+        try {
+            if (orderId && originalStatus !== null) {
+                // 1. Restauramos orders
+                await supabase.from('orders').update({ status_id: originalStatus }).eq('id', orderId);
+                
+                // 2. Restauramos reporte_ventas
+                const estadoTexto = originalStatus === 1 ? 'pending' : 'preparing'; 
+                await supabase.from('reporte_ventas').update({ estado: estadoTexto }).eq('pedido_id', orderId);
+            }
+        } catch (error) {
+            console.error("Error al liberar:", error);
+        } finally {
+            if (action === 'edit') setEditingOrder(null);
+            if (action === 'delete') setDeletingOrder(null);
+            setOriginalStatus(null);
+            fetchOrders(); 
+            setSubmitting(false);
+        }
     };
 
     const handleEditCartChange = (productId: string, delta: number) => {
@@ -175,9 +252,19 @@ export default function MeseroPage() {
             // Usa el editTotal que ya calcula correctamente el precio
             await updateOrder(editingOrder.id, { items: editCart, total: editTotal });
             
+            // Restauramos al estado original para que el cajero/cocinero puedan volver a verlo
+            if (originalStatus !== null) {
+                await supabase
+                    .from('orders') // NOTA: Igual aquí, verifica si tu tabla es 'orders' o 'pedidos'
+                    .update({ status_id: originalStatus })
+                    .eq('id', editingOrder.id);
+            }
+            
             setEditingOrder(null);
+            setOriginalStatus(null);
             setEditCart([]);
             toast("¡Pedido actualizado exitosamente!", "success");
+            fetchOrders(); // Refrescamos
         } catch (error) {
             toast("Error al actualizar el pedido", "error");
         } finally {
@@ -212,6 +299,24 @@ export default function MeseroPage() {
         } catch (error: any) {
             toast("Error al actualizar el estado", "error");
             console.error(error);
+        }
+    };
+
+    // RESCATE: Fuerza el desbloqueo si un pedido se quedó huérfano (F5 o caída de red)
+    const handleForceUnlock = async (orderId: string) => {
+        setSubmitting(true);
+        try {
+            // Asumimos que lo devolvemos a "Pendiente" (status_id: 1) por seguridad
+            await supabase.from('orders').update({ status_id: 1 }).eq('id', orderId);
+            await supabase.from('reporte_ventas').update({ estado: 'pending' }).eq('pedido_id', orderId);
+            
+            toast("¡Pedido desbloqueado a la fuerza!", "success");
+            fetchOrders();
+        } catch (error) {
+            console.error(error);
+            toast("Error al forzar desbloqueo", "error");
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -378,41 +483,65 @@ export default function MeseroPage() {
                                     </div>
                                     
                                     <div style={{ display: "flex", gap: "0.5rem", justifyContent: "center", alignItems: "center" }}>
-                                        {order.status === 'pending' && (
-                                            <>
-                                                <button 
-                                                    onClick={() => openEditModal(order)} 
-                                                    className="btn" 
-                                                    title={order.is_paid ? "Bloqueado: El pedido ya fue pagado" : "Editar Orden"}
-                                                    disabled={order.is_paid}
-                                                    style={{ 
-                                                        padding: "0.5rem", 
-                                                        background: order.is_paid ? "rgba(255,255,255,0.05)" : "rgba(59, 130, 246, 0.2)", 
-                                                        color: order.is_paid ? "var(--text-muted)" : "#60a5fa",
-                                                        cursor: order.is_paid ? "not-allowed" : "pointer",
-                                                        opacity: order.is_paid ? 0.5 : 1
-                                                    }}
-                                                >
-                                                    <Edit2 size={18} />
-                                                </button>
-                                                <button 
-                                                    onClick={() => setDeletingOrder({ id: order.id, table_number: order.table_number })} 
-                                                    className={`btn ${order.is_paid ? '' : 'btn-danger'}`} 
-                                                    title={order.is_paid ? "Bloqueado: El pedido ya fue pagado" : "Eliminar orden"}
-                                                    disabled={order.is_paid}
-                                                    style={{ 
-                                                        padding: "0.5rem",
-                                                        background: order.is_paid ? "rgba(255,255,255,0.05)" : "",
-                                                        color: order.is_paid ? "var(--text-muted)" : "",
-                                                        cursor: order.is_paid ? "not-allowed" : "pointer",
-                                                        opacity: order.is_paid ? 0.5 : 1
-                                                    }}
-                                                >
-                                                    <Trash2 size={18} />
-                                                </button>
-                                            </>
+    
+                                        {/* --- BOTÓN DE RESCATE: Solo se muestra si el pedido quedó huérfano --- */}
+                                        {order.status === 'editing' ? (
+                                            <button 
+                                                onClick={() => handleForceUnlock(order.id)} 
+                                                className="btn btn-warning" 
+                                                title="Forzar Desbloqueo (Usar si se quedó trabado)"
+                                                style={{ 
+                                                    padding: "0.5rem", 
+                                                    color: "#d97706", 
+                                                    background: "rgba(245, 158, 11, 0.2)",
+                                                    border: "1px solid rgba(245, 158, 11, 0.4)",
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: "0.4rem",
+                                                    borderRadius: "8px"
+                                                }}
+                                            >
+                                                <Unlock size={16} /> {/* <- No olvides importar Unlock */}
+                                                <span style={{ fontSize: "0.8rem", fontWeight: "bold" }}>Destrabar</span>
+                                            </button>
+                                        ) : (
+                                            /* --- TUS BOTONES ORIGINALES PARA PEDIDOS PENDIENTES --- */
+                                            order.status === 'pending' && (
+                                                <>
+                                                    <button 
+                                                        onClick={() => openLockedModal(order, 'edit')} 
+                                                        className="btn" 
+                                                        title={order.is_paid ? "Bloqueado: El pedido ya fue pagado" : "Editar Orden"}
+                                                        disabled={order.is_paid}
+                                                        style={{ 
+                                                            padding: "0.5rem", 
+                                                            background: order.is_paid ? "rgba(255,255,255,0.05)" : "rgba(59, 130, 246, 0.2)", 
+                                                            color: order.is_paid ? "var(--text-muted)" : "#60a5fa",
+                                                            cursor: order.is_paid ? "not-allowed" : "pointer",
+                                                            opacity: order.is_paid ? 0.5 : 1
+                                                        }}
+                                                    >
+                                                        <Edit2 size={18} />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => openLockedModal(order, 'delete')} 
+                                                        className={`btn ${order.is_paid ? '' : 'btn-danger'}`} 
+                                                        title={order.is_paid ? "Bloqueado: El pedido ya fue pagado" : "Gestionar orden"}
+                                                        disabled={order.is_paid}
+                                                        style={{ 
+                                                            padding: "0.5rem",
+                                                            background: order.is_paid ? "rgba(255,255,255,0.05)" : "",
+                                                            color: order.is_paid ? "var(--text-muted)" : "",
+                                                            cursor: order.is_paid ? "not-allowed" : "pointer",
+                                                            opacity: order.is_paid ? 0.5 : 1
+                                                        }}
+                                                    >
+                                                        <Trash2 size={18} />
+                                                    </button>
+                                                </>
+                                            )
                                         )}
-
+                                        
                                         {order.status === 'preparing' && (
                                             <span style={{ fontSize: "0.85rem", color: "var(--text-muted)", fontStyle: "italic" }}>
                                                 Cocinando...
@@ -443,7 +572,7 @@ export default function MeseroPage() {
             {editingOrder && (
                 <Modal
                     isOpen={!!editingOrder}
-                    onClose={() => setEditingOrder(null)}
+                    onClose={() => closeLockedModal('edit')}
                     title={`Editar Pedido - Mesa ${editingOrder.table_number}`}
                 >
                     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
@@ -533,7 +662,7 @@ export default function MeseroPage() {
                                 <span>${editTotal.toFixed(2)}</span>
                             </div>
                             <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
-                                <button onClick={() => setEditingOrder(null)} className="btn btn-secondary" style={{ flex: 1 }}>
+                                <button onClick={() => closeLockedModal('edit')} className="btn btn-secondary" style={{ flex: 1 }} disabled={submitting}>
                                     Cancelar
                                 </button>
                                 <button 
@@ -553,7 +682,7 @@ export default function MeseroPage() {
             {/* MODAL 2: CONFIRMAR ELIMINACIÓN */}
             <Modal
                 isOpen={!!deletingOrder}
-                onClose={() => setDeletingOrder(null)}
+                onClose={() => closeLockedModal('delete')}
                 title="Confirmar Eliminación"
             >
                 <div style={{ textAlign: "center" }}>
@@ -576,7 +705,7 @@ export default function MeseroPage() {
                         <span style={{ fontSize: "0.9rem" }}>Esta acción no se puede deshacer.</span>
                     </p>
                     <div style={{ display: "flex", gap: "1rem", justifyContent: "center" }}>
-                        <button onClick={() => setDeletingOrder(null)} className="btn btn-secondary" style={{ minWidth: "120px" }}>
+                        <button onClick={() => closeLockedModal('delete')} className="btn btn-secondary" style={{ minWidth: "120px" }}>
                             Cancelar
                         </button>
                         <button onClick={handleDeleteOrder} className="btn btn-danger" style={{ minWidth: "120px" }}>
