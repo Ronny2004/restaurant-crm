@@ -10,7 +10,7 @@ export type Product = {
 export type OrderItem = {
     id: string;
     product_id: string;
-    product_name: string; // denormalized for ease
+    product_name: string;
     quantity: number;
     price: number;
 };
