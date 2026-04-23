@@ -13,6 +13,10 @@ export type UserProfile = {
     role: UserRole;
     full_name?: string;
     username?: string;
+    phone?: string;
+    gender?: string;
+    birth_date?: string;
+    avatar_url?: string;
 };
 
 type AuthContextType = {

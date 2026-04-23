@@ -19,7 +19,6 @@ import {
     X
 } from "lucide-react";
 
-
 export function Header() {
     const { profile, signOut } = useAuth();
     const pathname = usePathname();
@@ -28,13 +27,13 @@ export function Header() {
     // Estados para los menús desplegables
     const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
     const [openNavDropdown, setOpenNavDropdown] = useState<string | null>(null);
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // ESTADO PARA HAMBURGUESA
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); 
     
     if (!profile) return null;
 
     const isAdmin = profile.role === "admin";
 
-    // 1. Lógica dinámica para Títulos y Botón de Volver
+    // 1. Lógica dinámica para Títulos y Botón de Volver (En Español)
     let title = "Sistema LDM";
     let showBackButton = false;
 
@@ -60,7 +59,7 @@ export function Header() {
         showBackButton = isAdmin && pathname !== "/";
     }
 
-    // 2. Rutas de navegación actualizadas con Submenús
+    // 2. Rutas de navegación actualizadas con Submenús (En Español)
     const navItems = [
         { label: 'Inicio', icon: Home, href: '/' },
         { 
@@ -81,15 +80,13 @@ export function Header() {
         await signOut();
     };
 
-    // Función mágica para forzar la recarga completa de la página
     const forceReloadNavigation = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
-        e.preventDefault(); // Detenemos el comportamiento por defecto
-        window.location.href = href; // Obligamos al navegador a hacer una petición nueva al servidor
+        e.preventDefault(); 
+        window.location.href = href; 
     };
 
     return (
         <>
-
             <header className="header-container">
                 
                 {/* LADO IZQUIERDO: Título y Volver */}
@@ -124,7 +121,6 @@ export function Header() {
                                         onMouseEnter={() => hasSubItems && setOpenNavDropdown(item.label)}
                                         onMouseLeave={() => hasSubItems && setOpenNavDropdown(null)}
                                     >
-                                        {/* Usamos <a> en lugar de <Link> para forzar recarga */}
                                         <a 
                                             href={item.href}
                                             onClick={(e) => forceReloadNavigation(e, item.href)}
@@ -206,7 +202,7 @@ export function Header() {
 
                     {isAdmin && <div className="nav-divider" style={{ height: "40px", width: "1px", background: "var(--border)" }} />}
 
-                    {/* BOTÓN HAMBURGUESA (Solo visible en móviles) */}
+                    {/* BOTÓN HAMBURGUESA */}
                     {isAdmin && (
                         <button 
                             className="mobile-toggle"
@@ -216,7 +212,7 @@ export function Header() {
                         </button>
                     )}
 
-                    {/* CONTENEDOR DEL PERFIL Y SUBMENÚ (Se mantiene en ambos) */}
+                    {/* CONTENEDOR DEL PERFIL Y SUBMENÚ */}
                     <div style={{ position: "relative" }}>
                         <button 
                             onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
@@ -237,7 +233,22 @@ export function Header() {
                             onMouseEnter={(e) => e.currentTarget.style.color = "white"}
                             onMouseLeave={(e) => e.currentTarget.style.color = isProfileMenuOpen ? "white" : "var(--text-muted)"}
                         >
-                            <UserCircle size={24} />
+                            {/* LÓGICA DE FOTO DE PERFIL */}
+                            {profile.avatar_url ? (
+                                <img 
+                                    src={profile.avatar_url} 
+                                    alt="Avatar" 
+                                    style={{ 
+                                        width: "24px", 
+                                        height: "24px", 
+                                        borderRadius: "50%", 
+                                        objectFit: "cover",
+                                        border: "1px solid var(--border)"
+                                    }} 
+                                />
+                            ) : (
+                                <UserCircle size={24} />
+                            )}
                             <span style={{ fontSize: "0.8rem" }}>Perfil</span>
                         </button>
 
@@ -259,6 +270,7 @@ export function Header() {
                                 gap: "0.2rem"
                             }}>
                                 <button 
+                                    onClick={(e) => forceReloadNavigation(e as any, '/profile')}
                                     style={{ display: "flex", alignItems: "center", gap: "0.6rem", padding: "0.6rem", width: "100%", background: "transparent", border: "none", color: "white", cursor: "pointer", textAlign: "left", borderRadius: "4px", transition: "background 0.2s" }}
                                     onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
                                     onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
@@ -325,7 +337,6 @@ export function Header() {
                                     <span style={{ fontWeight: isActive ? '600' : '400', fontSize: '1rem' }}>{item.label}</span>
                                 </a>
                                 
-                                {/* Subitems renderizados en móvil debajo del principal */}
                                 {hasSubItems && (
                                     <div style={{ display: 'flex', flexDirection: 'column', paddingLeft: '3.5rem', gap: '0.5rem' }}>
                                         {item.subItems?.map((sub, sIdx) => {

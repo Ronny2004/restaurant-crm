@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -75,7 +74,6 @@ export default function Home() {
     }
   ];
 
-
   return (
     <main className="container" style={{ minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
       <div style={{ position: "absolute", top: "2rem", right: "2.5rem" }}>
@@ -99,8 +97,23 @@ export default function Home() {
                 onMouseEnter={(e) => e.currentTarget.style.color = "white"}
                 onMouseLeave={(e) => e.currentTarget.style.color = isProfileMenuOpen ? "white" : "var(--text-muted)"}
             >
-                <UserCircle size={28} /> {/* Un poquito más grande para el splash screen */}
-                <span style={{ fontSize: "0.85rem" }}>Profile</span>
+                {/* LÓGICA DE FOTO DE PERFIL */}
+                {profile.avatar_url ? (
+                    <img 
+                        src={profile.avatar_url} 
+                        alt="Avatar" 
+                        style={{ 
+                            width: "28px", 
+                            height: "28px", 
+                            borderRadius: "50%", 
+                            objectFit: "cover",
+                            border: "1px solid var(--border)"
+                        }} 
+                    />
+                ) : (
+                    <UserCircle size={28} />
+                )}
+                <span style={{ fontSize: "0.85rem" }}>Perfil</span>
             </button>
 
             {/* Menú Desplegable */}
@@ -109,7 +122,7 @@ export default function Home() {
                     position: "absolute",
                     top: "120%",
                     right: 0,
-                    zIndex: 1, 
+                    zIndex: 10, 
                     background: "#0f172a",
                     border: "1px solid var(--border)",
                     borderRadius: "8px",
@@ -121,21 +134,23 @@ export default function Home() {
                     gap: "0.2rem"
                 }}>
                     <button 
+                        onClick={() => router.push('/profile')}
                         className="dropdown-item"
                         style={{ display: "flex", alignItems: "center", gap: "0.6rem", padding: "0.6rem", width: "100%", background: "transparent", border: "none", color: "white", cursor: "pointer", textAlign: "left", borderRadius: "4px", transition: "background 0.2s" }}
                         onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
                         onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                     >
-                        <User size={16} /> Profile
+                        <User size={16} /> Datos Personales
                     </button>
                     
                     <button 
+                        onClick={() => router.push('/profile')}
                         className="dropdown-item"
                         style={{ display: "flex", alignItems: "center", gap: "0.6rem", padding: "0.6rem", width: "100%", background: "transparent", border: "none", color: "white", cursor: "pointer", textAlign: "left", borderRadius: "4px", transition: "background 0.2s" }}
                         onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
                         onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                     >
-                        <Settings size={16} /> Settings
+                        <Settings size={16} /> Configuración
                     </button>
                     
                     <div style={{ height: "1px", background: "var(--border)", margin: "0.3rem 0" }} />
@@ -147,7 +162,7 @@ export default function Home() {
                         onMouseEnter={(e) => e.currentTarget.style.background = "rgba(239, 68, 68, 0.1)"}
                         onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                     >
-                        <LogOut size={16} /> Logout
+                        <LogOut size={16} /> Cerrar Sesión
                     </button>
                 </div>
             )}
