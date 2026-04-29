@@ -55,6 +55,14 @@ export function Header() {
         title = "Caja - Cobros y Facturación";
         showBackButton = isAdmin; 
     } 
+    else if (pathname.includes('/profile')) {
+        title = "Perfil de Usuario";
+        showBackButton = true; 
+    }
+    else if (pathname.includes('/settings')) {
+        title = "Configuración";
+        showBackButton = true; 
+    }
     else {
         showBackButton = isAdmin && pathname !== "/";
     }
@@ -85,6 +93,15 @@ export function Header() {
         window.location.href = href; 
     };
 
+    // Lógica inteligente para el botón "Volver"
+    const handleBackClick = () => {
+        if (pathname.includes('/profile') || pathname.includes('/settings')) {
+            router.push('/'); // Si está en perfil o ajustes, lo manda a la raíz
+        } else {
+            router.back(); // En otros casos, solo regresa a la pestaña anterior
+        }
+    };
+
     return (
         <>
             <header className="header-container">
@@ -93,7 +110,7 @@ export function Header() {
                 <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
                     {showBackButton && (
                         <button 
-                            onClick={() => router.back()}
+                            onClick={handleBackClick}
                             className="btn btn-secondary"
                             style={{ padding: "0.5rem", display: "flex", alignItems: "center", gap: "0.2rem", borderRadius: "8px" }}
                         >
@@ -279,6 +296,7 @@ export function Header() {
                                 </button>
                                 
                                 <button 
+                                    onClick={(e) => forceReloadNavigation(e as any, '/settings')}
                                     style={{ display: "flex", alignItems: "center", gap: "0.6rem", padding: "0.6rem", width: "100%", background: "transparent", border: "none", color: "white", cursor: "pointer", textAlign: "left", borderRadius: "4px", transition: "background 0.2s" }}
                                     onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
                                     onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
