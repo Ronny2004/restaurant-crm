@@ -4,384 +4,324 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import { User, Lock, LogOut, Shield, Camera, Calendar, UserCircle, Phone, Save, Loader2, KeyRound } from "lucide-react";
-import { useToast } from "@/context/ToastContext";
 import { Header } from "@/components/layout/Header";
+import { 
+    UserCircle, TrendingUp, CheckCircle, Activity, 
+    Clock, Loader2, Calendar, Target, ChefHat, 
+    AlertTriangle, Users, DollarSign, Receipt
+} from "lucide-react";
+import { useToast } from "@/context/ToastContext";
 
-export default function ProfilePage() {
-    const { profile, loading: authLoading, signOut } = useAuth();
+// Importamos los dos sub-componentes que creaste
+import { AuditoriaEmpleados } from "./auditoriaEmpleados";
+import { AdminMetricsModals } from "./AdminMetricsModals";
+
+export default function ProfileDashboardPage() {
+    const { profile, loading: authLoading } = useAuth();
     const router = useRouter();
     const toast = useToast();
 
-    // Estados para Datos Personales
-    const [formData, setFormData] = useState({
-        full_name: "",
-        phone: "",
-        birth_date: "",
-        gender: ""
-    });
+    // Estados
+    const [activeTab, setActiveTab] = useState<'info' | 'audit'>('info');
+    const [activeAdminModal, setActiveAdminModal] = useState<string | null>(null); // Estado para los modales de tarjetas
+    const [metrics, setMetrics] = useState<any[]>([]);
+    const [isLoadingStats, setIsLoadingStats] = useState(true);
 
-    // Estados para Seguridad y UI
-    const [newPassword, setNewPassword] = useState("");
-    const [confirmPassword, setConfirmPassword] = useState("");
-    const [isSaving, setIsSaving] = useState(false);
-    const [uploading, setUploading] = useState(false);
-    const [activeTab, setActiveTab] = useState<'info' | 'security'>('info');
-
-    // Cargar datos actuales del perfil
     useEffect(() => {
-        if (profile) {
-            setFormData({
-                full_name: profile.full_name || "",
-                phone: profile.phone || "",
-                birth_date: profile.birth_date || "",
-                gender: profile.gender || ""
-            });
+        if (!authLoading && !profile) {
+            router.push("/login");
+        } else if (profile) {
+            if (profile.role === 'admin') {
+                setActiveTab('audit');
+            } else {
+                setActiveTab('info');
+            }
+            fetchRoleSpecificStats();
         }
-    }, [profile]);
+    }, [profile, authLoading, router]);
 
-    if (authLoading) {
-        return (
-            <div className="container" style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Loader2 size={48} className="animate-spin" style={{ color: "var(--primary)" }} />
-            </div>
-        );
-    }
-
-    if (!profile) {
-        router.push("/login");
-        return null;
-    }
-
-    // --- LÓGICA DE SUBIDA DE FOTO ---
-    const uploadAvatar = async (event: any) => {
+    const fetchRoleSpecificStats = async () => {
         try {
-            setUploading(true);
-            if (!event.target.files || event.target.files.length === 0) return;
+            setIsLoadingStats(true);
+            const startOfDay = new Date();
+            startOfDay.setHours(0, 0, 0, 0);
+            const endOfDay = new Date();
+            endOfDay.setHours(23, 59, 59, 999);
 
-            const file = event.target.files[0];
-            const fileExt = file.name.split('.').pop();
-            const fileName = `${profile.id}-${Math.random()}.${fileExt}`;
-            const filePath = `avatars/${fileName}`;
+            // --- MESERO ---
+            if (profile?.role === 'waiter') {
+                const { count } = await supabase.from('orders')
+                    .select('*', { count: 'exact' })
+                    .eq('waiter_id', profile.id)
+                    .gte('created_at', startOfDay.toISOString());
+                
+                setMetrics([
+                    { label: "Pedidos Tomados", value: count || 0, icon: CheckCircle, color: "#10b981", bg: "rgba(16, 185, 129, 0.1)" },
+                    { label: "Productividad", value: (count || 0) > 15 ? "Alta 🔥" : "Normal", icon: Activity, color: "#3b82f6", bg: "rgba(59, 130, 246, 0.1)" },
+                    { label: "Mesas Activas", value: "3", icon: Users, color: "#f59e0b", bg: "rgba(245, 158, 11, 0.1)" }
+                ]);
 
-            // 1. Subir a Storage (Asegúrate de crear el bucket 'avatar_image' en Supabase)
-            const { error: uploadError } = await supabase.storage
-                .from('avatar_image')
-                .upload(filePath, file);
+            // --- COCINERO ---
+            } else if (profile?.role === 'chef') {
+                const { data, count } = await supabase.from('orders')
+                    .select('created_at, updated_at')
+                    .eq('status', 'served') 
+                    .gte('created_at', startOfDay.toISOString());
 
-            if (uploadError) throw uploadError;
+                let myAvgTime = "Sin datos";
+                if (data && data.length > 0) {
+                    const totalMs = data.reduce((acc, curr) => {
+                        const start = new Date(curr.created_at).getTime();
+                        const end = new Date(curr.updated_at).getTime();
+                        return acc + (end - start);
+                    }, 0);
+                    const avgMin = Math.round((totalMs / data.length) / (1000 * 60));
+                    myAvgTime = `${avgMin} min`;
+                }
 
-            // 2. Obtener URL pública
-            const { data: { publicUrl } } = supabase.storage.from('avatar_image').getPublicUrl(filePath);
+                setMetrics([
+                    { label: "Platos Despachados", value: count || 0, icon: ChefHat, color: "#f97316", bg: "rgba(249, 115, 22, 0.1)" },
+                    { label: "Tu Tiempo Promedio", value: myAvgTime, icon: Clock, color: "#3b82f6", bg: "rgba(59, 130, 246, 0.1)" },
+                    { label: "Alertas Stock", value: "0", icon: AlertTriangle, color: "#ef4444", bg: "rgba(239, 68, 68, 0.1)" }
+                ]);
 
-            // 3. Actualizar tabla profiles
-            const { error: updateError } = await supabase
-                .from('profiles')
-                .update({ avatar_url: publicUrl })
-                .eq('id', profile.id);
+            // --- CAJERO ---
+            } else if (profile?.role === 'cashier') {
+                const { data } = await supabase.from('orders')
+                    .select('total')
+                    .eq('is_paid', true)
+                    .gte('created_at', startOfDay.toISOString());
+                
+                const totalGanado = data?.reduce((acc, curr) => acc + (curr.total || 0), 0) || 0;
 
-            if (updateError) throw updateError;
+                setMetrics([
+                    { label: "Tickets Cobrados", value: data?.length || 0, icon: Receipt, color: "#10b981", bg: "rgba(16, 185, 129, 0.1)" },
+                    { label: "Ingresos del Turno", value: `$${totalGanado.toFixed(2)}`, icon: DollarSign, color: "#f59e0b", bg: "rgba(245, 158, 11, 0.1)" },
+                    { label: "Cierre de Caja", value: "Pendiente", icon: Clock, color: "#3b82f6", bg: "rgba(59, 130, 246, 0.1)" }
+                ]);
 
-            toast("¡Foto de perfil actualizada!", "success");
-            window.location.reload(); // Recargamos para ver los cambios
-        } catch (error: any) {
-            toast(error.message, "error");
+            // --- ADMIN ---
+            } else if (profile?.role === 'admin') {
+                const { data: kitchenData } = await supabase.from('orders')
+                    .select('created_at, updated_at')
+                    .eq('status', 'served')
+                    .gte('created_at', startOfDay.toISOString());
+
+                let globalAvgTime = "N/A";
+                if (kitchenData && kitchenData.length > 0) {
+                    const totalMs = kitchenData.reduce((acc, curr) => {
+                        const start = new Date(curr.created_at).getTime();
+                        const end = new Date(curr.updated_at).getTime();
+                        return acc + (end - start);
+                    }, 0);
+                    const avgMin = Math.round((totalMs / kitchenData.length) / (1000 * 60));
+                    globalAvgTime = `${avgMin} min`;
+                }
+
+                setMetrics([
+                    // NOTA: Aquí agregamos la propiedad "action" para que abran los modales
+                    { label: "Personal Activo", value: "4", icon: Users, color: "#8b5cf6", bg: "rgba(139, 92, 246, 0.1)", action: 'employees' },
+                    { label: "Velocidad de Cocina", value: globalAvgTime, icon: Clock, color: "#f97316", bg: "rgba(249, 115, 22, 0.1)", action: 'kitchen' },
+                    { label: "Alertas de Stock", value: "1 Nueva", icon: AlertTriangle, color: "#ef4444", bg: "rgba(239, 68, 68, 0.1)", action: 'stock' }
+                ]);
+            }
+
+        } catch (error) {
+            console.error("Error fetching stats:", error);
         } finally {
-            setUploading(false);
+            setIsLoadingStats(false);
         }
     };
 
-    // --- LÓGICA DE GUARDAR DATOS PERSONALES ---
-    const handleUpdateProfile = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setIsSaving(true);
-        try {
-            const { error } = await supabase
-                .from('profiles')
-                .update(formData)
-                .eq('id', profile.id);
+    if (authLoading || !profile) return null;
 
-            if (error) throw error;
-            toast("Datos personales actualizados correctamente", "success");
-        } catch (error: any) {
-            toast("Error al actualizar perfil", "error");
-        } finally {
-            setIsSaving(false);
-        }
+    const handleRequestInventory = () => {
+        toast("Se ha enviado una notificación al Administrador para reabastecer el inventario.", "success");
     };
 
-    // --- LÓGICA DE CAMBIO DE CLAVE ---
-    const handlePasswordChange = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (newPassword !== confirmPassword) {
-            toast("Las contraseñas no coinciden", "error");
-            return;
-        }
-        setIsSaving(true);
-        try {
-            const { error } = await supabase.auth.updateUser({ password: newPassword });
-            if (error) throw error;
-            toast("Contraseña actualizada", "success");
-            setNewPassword("");
-            setConfirmPassword("");
-        } catch (error: any) {
-            toast(error.message, "error");
-        } finally {
-            setIsSaving(false);
-        }
+    const roleStyles: Record<string, { label: string, color: string, bg: string }> = {
+        'admin': { label: 'Administrador', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.2)' },
+        'waiter': { label: 'Mesero', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.2)' },
+        'chef': { label: 'Cocinero', color: '#f97316', bg: 'rgba(249, 115, 22, 0.2)' },
+        'cashier': { label: 'Cajero', color: '#10b981', bg: 'rgba(16, 185, 129, 0.2)' },
     };
-
-    const traducirRol = (rol: string) => {
-        switch (rol) {
-            case 'admin': return { texto: 'Admin', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.2)' };
-            case 'waiter': return { texto: 'Mesero', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.2)' };
-            case 'chef': return { texto: 'Chef', color: '#f97316', bg: 'rgba(249, 115, 22, 0.2)' };
-            default: return { texto: rol, color: '#fff', bg: 'rgba(255,255,255,0.1)' };
-        }
-    };
-
-    const rolVisual = traducirRol(profile.role);
+    const roleStyle = roleStyles[profile.role] || { label: profile.role, color: 'white', bg: 'rgba(255,255,255,0.1)' };
 
     return (
         <div className="container">
             <Header />
 
-            <div style={{ maxWidth: "900px", margin: "2rem auto" }}>
+            <div style={{ maxWidth: "1000px", margin: "2rem auto", display: "flex", flexDirection: "column", gap: "2.5rem", paddingBottom: "4rem" }}>
                 
-                {/* CABECERA DE PERFIL */}
-                <div className="glass-panel" style={{ padding: "2rem", marginBottom: "2rem", display: "flex", alignItems: "center", gap: "2rem", flexWrap: "wrap" }}>
+                {/* 1. CABECERA VISUAL */}
+                <div className="glass-panel" style={{ padding: "2.5rem", display: "flex", alignItems: "center", gap: "2.5rem", flexWrap: "wrap" }}>
                     <div style={{ position: "relative" }}>
-                        <div style={{ width: "120px", height: "120px", borderRadius: "50%", overflow: "hidden", border: `3px solid ${rolVisual.color}`, background: "#1e293b" }}>
+                        <div style={{ width: "120px", height: "120px", borderRadius: "50%", overflow: "hidden", border: `3px solid ${roleStyle.color}`, background: "#1e293b", boxShadow: `0 0 20px ${roleStyle.bg}` }}>
                             {profile.avatar_url ? (
-                                <img src={profile.avatar_url} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                <img src={profile.avatar_url} alt="Profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                             ) : (
                                 <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                    <User size={60} color="var(--text-muted)" />
+                                    <UserCircle size={60} color="var(--text-muted)" />
                                 </div>
                             )}
                         </div>
-                        <label style={{ 
-                            position: "absolute", bottom: "5px", right: "5px", 
-                            background: "var(--primary)", padding: "8px", borderRadius: "50%", 
-                            cursor: "pointer", display: "flex", alignItems: "center", boxShadow: "0 4px 10px rgba(0,0,0,0.5)" 
-                        }}>
-                            {uploading ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} color="white" />}
-                            <input type="file" hidden accept="image/*" onChange={uploadAvatar} disabled={uploading} />
-                        </label>
                     </div>
-
                     <div style={{ flex: 1 }}>
-                        <h1 style={{ fontSize: "1.8rem", marginBottom: "0.5rem" }}>{formData.full_name || profile.username}</h1>
-                        <p style={{ color: "var(--text-muted)", marginBottom: "1rem" }}>@{profile.username}</p>
-                        <span style={{ background: rolVisual.bg, color: rolVisual.color, padding: "0.3rem 1rem", borderRadius: "99px", fontSize: "0.85rem", fontWeight: "bold" }}>
-                            {rolVisual.texto}
-                        </span>
+                        <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "0.5rem" }}>
+                            <h1 style={{ fontSize: "2.2rem", margin: 0 }}>{profile.full_name || profile.username}</h1>
+                            <span style={{ background: roleStyle.bg, color: roleStyle.color, padding: "0.3rem 0.8rem", borderRadius: "8px", fontSize: "0.8rem", fontWeight: "bold", textTransform: "uppercase", letterSpacing: "1px" }}>
+                                {roleStyle.label}
+                            </span>
+                        </div>
+                        <p style={{ color: "var(--text-muted)", fontSize: "1.1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                            @{profile.username} • <Calendar size={16} /> Miembro del equipo
+                        </p>
                     </div>
-
-                    <button onClick={signOut} className="btn btn-danger" style={{ display: "flex", gap: "0.5rem" }}>
-                        <LogOut size={18} /> Salir
-                    </button>
                 </div>
 
-                {/* SELECTOR DE PESTAÑAS */}
-                <div style={{ display: "flex", gap: "1rem", marginBottom: "1.5rem" }}>
-                    <button 
-                        onClick={() => setActiveTab('info')}
-                        style={{ 
-                            padding: "0.75rem 1.5rem", borderRadius: "8px", border: "none", cursor: "pointer",
-                            background: activeTab === 'info' ? "var(--primary)" : "rgba(255,255,255,0.05)",
-                            color: activeTab === 'info' ? "white" : "var(--text-muted)", fontWeight: "bold"
-                        }}
-                    >
-                        Información Personal
-                    </button>
-                    <button 
-                        onClick={() => setActiveTab('security')}
-                        style={{ 
-                            padding: "0.75rem 1.5rem", borderRadius: "8px", border: "none", cursor: "pointer",
-                            background: activeTab === 'security' ? "var(--primary)" : "rgba(255,255,255,0.05)",
-                            color: activeTab === 'security' ? "white" : "var(--text-muted)", fontWeight: "bold"
-                        }}
-                    >
-                        Seguridad
-                    </button>
-                </div>
-
-                {/* CONTENIDO PESTAÑA INFO */}
-                {activeTab === 'info' && (
-                    <div className="glass-panel" style={{ padding: "2rem" }}>
-                        <form onSubmit={handleUpdateProfile} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}>
-                            <div style={{ gridColumn: "span 2" }}>
-                                <label style={{ display: "block", marginBottom: "0.5rem", color: "var(--text-muted)" }}>Nombre Completo</label>
-                                <input 
-                                    type="text" 
-                                    value={formData.full_name} 
-                                    onChange={(e) => setFormData({...formData, full_name: e.target.value})}
-                                    placeholder="Ej. Michael Villarreal Jara"
-                                />
-                            </div>
-                            
-                            <div>
-                                <label style={{ display: "block", marginBottom: "0.5rem", color: "var(--text-muted)" }}>Teléfono / WhatsApp</label>
-                                <input 
-                                    type="text" 
-                                    value={formData.phone} 
-                                    onChange={(e) => {
-                                        // 1. Limpiamos: Solo permitimos números y el símbolo '+'
-                                        let val = e.target.value.replace(/[^\d+]/g, '');
-
-                                        // 2. Si escriben "9" al inicio, autocompletamos sin espacios para que cuadren los 13 caracteres
-                                        if (val === "9") {
-                                            val = "+5939";
-                                        }
-
-                                        // 3. Calculamos el límite máximo según el inicio
-                                        let maxLen = 17; // Por defecto para otros países (+)
-                                        
-                                        if (val.startsWith("+593")) {
-                                            maxLen = 13;
-                                        } else if (val.startsWith("09")) {
-                                            maxLen = 10;
-                                        } else if (val.startsWith("+")) {
-                                            maxLen = 17; // Cualquier otro código de país
-                                        }
-
-                                        // 4. Cortamos el string si se pasa del límite calculado
-                                        if (val.length > maxLen) {
-                                            val = val.slice(0, maxLen);
-                                        }
-
-                                        setFormData({...formData, phone: val});
+                {/* 2. DASHBOARD (Tarjetas Clickeables) */}
+                <div>
+                    <h2 style={{ fontSize: "1.5rem", marginBottom: "1.5rem", display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                        <Target size={24} color="var(--primary)" /> Mi Rendimiento ({roleStyle.label})
+                    </h2>
+                    
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1.5rem" }}>
+                        {metrics.map((metric, idx) => {
+                            const Icon = metric.icon;
+                            return (
+                                <div 
+                                    key={idx} 
+                                    className="glass-panel" 
+                                    onClick={() => metric.action && setActiveAdminModal(metric.action)}
+                                    style={{ 
+                                        padding: "2rem", 
+                                        cursor: metric.action ? "pointer" : "default",
+                                        transition: "transform 0.2s, box-shadow 0.2s" 
                                     }}
-                                    placeholder="Ej. +593 *** *** **** o 09* *** ****"
-                                    style={{ width: "100%", padding: "0.75rem", background: "rgba(0,0,0,0.2)", border: "1px solid var(--border)", color: "white", borderRadius: "8px" }}
-                                />
-                                {/* Pequeño texto de ayuda dinámico debajo del input */}
-                                <small style={{ color: "var(--text-muted)", fontSize: "0.75rem", marginTop: "0.3rem", display: "block" }}>
-                                    {formData.phone.startsWith("+593") ? "Formato Ecuador: Máx 13 caracteres" : 
-                                    formData.phone.startsWith("09") ? "Formato Local: Máx 10 caracteres" : 
-                                    formData.phone.startsWith("+") ? "Formato Internacional: Máx 17 caracteres" : ""}
-                                </small>
+                                    onMouseEnter={(e) => {
+                                        if (metric.action) {
+                                            e.currentTarget.style.transform = "translateY(-5px)";
+                                            e.currentTarget.style.boxShadow = `0 10px 20px ${metric.bg}`;
+                                        }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        if (metric.action) {
+                                            e.currentTarget.style.transform = "translateY(0)";
+                                            e.currentTarget.style.boxShadow = "none";
+                                        }
+                                    }}
+                                >
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                                        <div style={{ flex: 1, minWidth: 0, paddingRight: "1rem" }}>
+                                            <p style={{ color: "var(--text-muted)", margin: "0 0 0.5rem 0", fontSize: "0.9rem" }}>{metric.label}</p>
+                                            <span style={{ fontSize: "1.8rem", fontWeight: "bold", lineHeight: "1.2", color: metric.color, display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                                {isLoadingStats ? <Loader2 className="animate-spin" size={28} color="white" /> : metric.value}
+                                            </span>
+                                        </div>
+                                        <div style={{ padding: "0.75rem", borderRadius: "12px", background: metric.bg, flexShrink: 0 }}>
+                                            <Icon color={metric.color} size={28} />
+                                        </div>
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                </div>
+
+                {/* 3. SELECTOR DE PESTAÑAS (Solo visible para el Admin) */}
+                {profile.role === 'admin' && (
+                    <div style={{ display: "flex", gap: "1rem", marginTop: "1rem" }}>
+                        <button 
+                            onClick={() => setActiveTab('audit')}
+                            style={{ 
+                                padding: "0.75rem 1.5rem", borderRadius: "8px", border: "none", cursor: "pointer",
+                                background: activeTab === 'audit' ? "var(--primary)" : "rgba(255,255,255,0.05)",
+                                color: activeTab === 'audit' ? "white" : "var(--text-muted)", fontWeight: "bold",
+                                transition: "all 0.2s"
+                            }}
+                        >
+                            Auditoría de Empleados
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('info')}
+                            style={{ 
+                                padding: "0.75rem 1.5rem", borderRadius: "8px", border: "none", cursor: "pointer",
+                                background: activeTab === 'info' ? "var(--primary)" : "rgba(255,255,255,0.05)",
+                                color: activeTab === 'info' ? "white" : "var(--text-muted)", fontWeight: "bold",
+                                transition: "all 0.2s"
+                            }}
+                        >
+                            Información y Actividad
+                        </button>
+                    </div>
+                )}
+
+                {/* 4. CONTENIDO DE PESTAÑAS */}
+                {activeTab === 'info' && (
+                    <>
+                        {profile.role === 'chef' && (
+                            <div className="glass-panel" style={{ padding: "2rem", border: "1px solid rgba(239, 68, 68, 0.3)" }}>
+                                <h3 style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem", color: "#ef4444" }}>
+                                    <AlertTriangle size={20} /> Solicitar Insumos a Administración
+                                </h3>
+                                <p style={{ color: "var(--text-muted)", marginBottom: "1.5rem" }}>¿Te quedaste sin ingredientes? Envía una alerta rápida al administrador para que reabastezca el inventario.</p>
+                                <button onClick={handleRequestInventory} className="btn" style={{ background: "rgba(239, 68, 68, 0.2)", color: "#ef4444", border: "1px solid rgba(239, 68, 68, 0.5)", width: "100%", padding: "1rem", display: "flex", justifyContent: "center", gap: "0.5rem", fontSize: "1.1rem" }}>
+                                    <AlertTriangle size={20} /> Enviar Alerta de Stock
+                                </button>
                             </div>
+                        )}
 
-                            <div>
-                                <label style={{ display: "block", marginBottom: "0.5rem", color: "var(--text-muted)" }}>Género</label>
-                                
-                                {/* FALSO SELECT PERSONALIZADO */}
-                                <div style={{ position: "relative" }}>
-                                    <div 
-                                        onClick={() => {
-                                            // Creamos un pequeño toggle en línea para abrir/cerrar
-                                            const el = document.getElementById('custom-gender-dropdown');
-                                            if(el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
-                                        }}
-                                        style={{ 
-                                            width: "100%", 
-                                            padding: "0.58rem", 
-                                            background: "rgba(0,0,0,0.2)", 
-                                            border: "1px solid var(--border)", 
-                                            color: formData.gender ? "white" : "var(--text-muted)", 
-                                            borderRadius: "8px",
-                                            cursor: "pointer",
-                                            display: "flex",
-                                            justifyContent: "space-between",
-                                            alignItems: "center"
-                                        }}
-                                    >
-                                        <span>{formData.gender || "Seleccionar..."}</span>
-                                        <span style={{ fontSize: "0.8rem", opacity: 0.7 }}>▼</span>
-                                    </div>
+                        {profile.role === 'admin' && (
+                            <div className="glass-panel" style={{ padding: "2rem", border: "1px solid rgba(139, 92, 246, 0.3)" }}>
+                                <h3 style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem", color: "#8b5cf6" }}>
+                                    <Users size={20} /> Auditoría Completa del Restaurante
+                                </h3>
+                                <p style={{ color: "var(--text-muted)", marginBottom: "1.5rem" }}>
+                                    Accede al historial completo de facturación, pedidos cancelados y movimientos del día para cuadrar la caja.
+                                </p>
+                                <button onClick={() => router.push('/admin/pedidostotales')} className="btn btn-primary" style={{ width: "100%", padding: "1rem", fontSize: "1.1rem" }}>
+                                    Ir al Panel de Auditoría de Pedidos
+                                </button>
+                            </div>
+                        )}
 
-                                    {/* LISTA DESPLEGABLE */}
-                                    <div 
-                                        id="custom-gender-dropdown"
-                                        style={{ 
-                                            display: "none", 
-                                            position: "absolute", 
-                                            top: "105%", 
-                                            left: 0, 
-                                            width: "100%", 
-                                            background: "#0f172a", // Fondo oscuro que combina con tu app
-                                            border: "1px solid var(--border)", 
-                                            borderRadius: "8px", 
-                                            zIndex: 50, 
-                                            overflow: "hidden",
-                                            boxShadow: "0 10px 25px rgba(0, 0, 0, 0.8)"
-                                        }}
-                                    >
-                                        {["Masculino", "Femenino", "Otro"].map((opcion) => (
-                                            <div 
-                                                key={opcion}
-                                                onClick={() => {
-                                                    setFormData({...formData, gender: opcion});
-                                                    document.getElementById('custom-gender-dropdown')!.style.display = 'none';
-                                                }}
-                                                style={{ 
-                                                    padding: "0.75rem 1rem", 
-                                                    cursor: "pointer", 
-                                                    color: "white",
-                                                    transition: "background 0.2s"
-                                                }}
-                                                onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
-                                                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                                            >
-                                                {opcion}
-                                            </div>
-                                        ))}
+                        <div>
+                            <h2 style={{ fontSize: "1.5rem", marginBottom: "1.5rem", marginTop: "1rem", display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                                <Activity size={24} color="var(--primary)" /> Historial de Actividad
+                            </h2>
+
+                            <div className="glass-panel" style={{ padding: "2.5rem" }}>
+                                <div style={{ display: "flex", flexDirection: "column", gap: "2rem", borderLeft: "2px solid var(--border)", marginLeft: "1rem", paddingLeft: "2rem" }}>
+                                    <div style={{ position: "relative" }}>
+                                        <div style={{ position: "absolute", left: "-39px", top: "4px", width: "14px", height: "14px", borderRadius: "50%", background: "#10b981", border: "3px solid #0f172a" }} />
+                                        <h4 style={{ margin: "0 0 0.2rem 0", fontSize: "1.1rem" }}>Sesión Sincronizada</h4>
+                                        <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.9rem" }}>Conectado exitosamente con la base de datos principal.</p>
                                     </div>
-                                    
-                                    {/* OVERLAY INVISIBLE PARA CERRAR AL HACER CLIC AFUERA */}
-                                    <div 
-                                        onClick={() => document.getElementById('custom-gender-dropdown')!.style.display = 'none'}
-                                        style={{
-                                            position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 49,
-                                            display: "none" // Se maneja por CSS indirecto, pero para simplificar, se cierra al hacer clic en las opciones
-                                        }}
-                                    />
+                                    <div style={{ position: "relative" }}>
+                                        <div style={{ position: "absolute", left: "-39px", top: "4px", width: "14px", height: "14px", borderRadius: "50%", background: "#3b82f6", border: "3px solid #0f172a" }} />
+                                        <h4 style={{ margin: "0 0 0.2rem 0", fontSize: "1.1rem" }}>Apertura de turno</h4>
+                                        <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.9rem" }}>Iniciaste sesión en el dispositivo actual.</p>
+                                    </div>
                                 </div>
                             </div>
+                        </div>
+                    </>
+                )}
 
-                            <div style={{ gridColumn: "span 2" }}>
-                                <label style={{ display: "block", marginBottom: "0.5rem", color: "var(--text-muted)" }}>Fecha de Nacimiento</label>
-                                <input 
-                                    type="date" 
-                                    value={formData.birth_date} 
-                                    onChange={(e) => setFormData({...formData, birth_date: e.target.value})}
-                                    // ESTA LÍNEA ES LA SOLUCIÓN: Limita la fecha máxima al día de hoy
-                                    max={new Date().toISOString().split("T")[0]} 
-                                    // OPCIONAL: Si quieres evitar que pongan fechas como el año 0001
-                                    min="1900-01-01" 
-                                    style={{ 
-                                        width: "100%", 
-                                        padding: "0.75rem", 
-                                        background: "rgba(0,0,0,0.2)", 
-                                        border: "1px solid var(--border)", 
-                                        color: "white", 
-                                        borderRadius: "8px",
-                                        colorScheme: "dark", 
-                                        cursor: "text" 
-                                    }}
-                                />
-                            </div>
-
-                            <button type="submit" disabled={isSaving} className="btn btn-primary" style={{ gridColumn: "span 2", padding: "1rem", display: "flex", justifyContent: "center", gap: "0.5rem" }}>
-                                {isSaving ? <Loader2 className="animate-spin" /> : <Save size={18} />} Guardar Cambios
-                            </button>
-                        </form>
+                {activeTab === 'audit' && profile.role === 'admin' && (
+                    <div style={{ marginTop: "1rem" }}>
+                        <AuditoriaEmpleados />
                     </div>
                 )}
 
-                {/* CONTENIDO PESTAÑA SEGURIDAD (Reutilizamos tu código anterior) */}
-                {activeTab === 'security' && (
-                    <div className="glass-panel" style={{ padding: "2rem" }}>
-                        <h3 style={{ marginBottom: "1.5rem" }}>Cambiar Contraseña</h3>
-                        <form onSubmit={handlePasswordChange} style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-                            <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Nueva Contraseña" />
-                            <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirmar Nueva Contraseña" />
-                            <button type="submit" disabled={isSaving || !newPassword} className="btn btn-primary">Actualizar Contraseña</button>
-                        </form>
-                    </div>
+                {/* 5. MODALES INTERACTIVOS DEL ADMIN */}
+                {activeAdminModal && (
+                    <AdminMetricsModals 
+                        activeModal={activeAdminModal} 
+                        onClose={() => setActiveAdminModal(null)} 
+                    />
                 )}
+
             </div>
         </div>
     );
