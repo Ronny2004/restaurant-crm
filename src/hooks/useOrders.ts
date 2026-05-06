@@ -33,6 +33,8 @@ const fetchOrderById = async (id: string): Promise<Order | null> => {
 
     return {
         ...data,
+        created_by: data.created_by,
+        updated_at: data.updated_at,
         status: data.status_order?.status ?? "pending",
         status_description: data.status_order?.description ?? "",
         items: (data.items ?? []).map((item: any) => ({
@@ -92,6 +94,8 @@ export const useOrders = () => {
         data.forEach((order: any) => {
             newMap[order.id] = {
                 ...order,
+                created_by: order.created_by,
+                updated_at: order.updated_at,
                 status: order.status_order?.status ?? "pending",
                 status_description: order.status_order?.description ?? "",
                 items: (order.items ?? []).map((item: any) => ({

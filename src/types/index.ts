@@ -23,6 +23,8 @@ export type Order = {
     status_description?: string;
     is_paid: boolean;
     total: number;
+    created_by?: string;
+    updated_at?: string;
     created_at: string;
     items: OrderItem[];
 };

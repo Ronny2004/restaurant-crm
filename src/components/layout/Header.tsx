@@ -292,7 +292,7 @@ export function Header() {
                                     onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
                                     onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                                 >
-                                    <User size={16} /> Datos Personales
+                                    <User size={16} /> Perfil
                                 </button>
                                 
                                 <button 
