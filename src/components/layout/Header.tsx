@@ -18,6 +18,7 @@ import {
     Menu, 
     X
 } from "lucide-react";
+import { supabase } from "@/lib/supabaseClient";
 
 export function Header() {
     const { profile, signOut } = useAuth();
@@ -85,6 +86,15 @@ export function Header() {
     ];
 
     const handleLogout = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+            await supabase.from('registro_sesiones').insert({
+                user_id: user.id,
+                tipo: 'logout'
+            });
+        }
+
         await signOut();
     };
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabaseClient";
 import { Activity, CheckCircle, Users, Calendar } from "lucide-react";
 import { ProfileTemplate } from "../ProfileTemplate";
 import { WaiterModals } from "./WaiterModals";
@@ -9,30 +10,24 @@ import { useOrders } from "@/hooks/useOrders";
 // ==========================================
 // CÁLCULO MATEMÁTICO ESTRICTO UTC-5 (ECUADOR)
 // ==========================================
-
-// 1. Forzamos la fecha de hoy restando 5 horas al tiempo universal
 const getEcuadorToday = () => {
     const now = new Date();
-    // Le restamos 5 horas en milisegundos
     const ecDate = new Date(now.getTime() - (5 * 60 * 60 * 1000));
     
     const yyyy = ecDate.getUTCFullYear();
     const mm = String(ecDate.getUTCMonth() + 1).padStart(2, '0');
     const dd = String(ecDate.getUTCDate()).padStart(2, '0');
     
-    return `${yyyy}-${mm}-${dd}`; // Siempre devuelve "YYYY-MM-DD" perfecto
+    return `${yyyy}-${mm}-${dd}`; 
 };
 
-// 2. Transforma la fecha de Supabase restándole 5 horas exactamente
 const getEcuadorTime = (dateString: string) => {
     if (!dateString) return null;
     
-    // Aseguramos que el texto sea leído como UTC por Javascript
     const safeString = dateString.includes('T') ? dateString : dateString.replace(' ', 'T');
     const finalString = (safeString.endsWith('Z') || safeString.includes('+')) ? safeString : `${safeString}Z`;
     const dateObj = new Date(finalString);
 
-    // Matemáticas: Hora absoluta - 5 Horas
     const ecDate = new Date(dateObj.getTime() - (5 * 60 * 60 * 1000));
 
     const yyyy = ecDate.getUTCFullYear();
@@ -42,13 +37,11 @@ const getEcuadorTime = (dateString: string) => {
     const min = String(ecDate.getUTCMinutes()).padStart(2, '0');
 
     return {
-        dateString: `${yyyy}-${mm}-${dd}`, // Ej: "2026-05-05"
-        timeString: `${hh}:${min}`,       // Ej: "23:02" 
-        rawDate: dateObj                  // Fecha original intacta para ordenar
+        dateString: `${yyyy}-${mm}-${dd}`,
+        timeString: `${hh}:${min}`,       
+        rawDate: dateObj                  
     };
 };
-
-// ==========================================
 
 export function WaiterProfile({ profile }: { profile: any }) {
     const { orders, auditorias } = useOrders(); 
@@ -60,22 +53,20 @@ export function WaiterProfile({ profile }: { profile: any }) {
 
     const [selectedDate, setSelectedDate] = useState<string>(getEcuadorToday());
     const [activityHistory, setActivityHistory] = useState<any[]>([]);
+    const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
     // 1. MÉTRICAS SUPERIORES
-    // 1. MÉTRICAS SUPERIORES (Corregido para usar created_by)
     useEffect(() => {
         if (orders) {
             const activeOrders = orders.filter(o => o.status !== 'ready');
             const mesasActivasCount = new Set(activeOrders.map(o => o.table_number)).size;
 
-            const startOfDay = new Date();
-            startOfDay.setHours(0, 0, 0, 0);
+            const ecuadorHoy = getEcuadorToday();
             
             const pedidosHoy = orders.filter(o => {
-                const orderDate = new Date(o.created_at);
-                // CORRECCIÓN: Filtramos por created_by
+                const ecTime = getEcuadorTime(o.created_at);
                 const isMyOrder = o.created_by ? o.created_by === profile.id : true; 
-                return orderDate >= startOfDay && isMyOrder;
+                return ecTime?.dateString === ecuadorHoy && isMyOrder;
             });
 
             const cantidadPedidos = pedidosHoy.length;
@@ -90,89 +81,98 @@ export function WaiterProfile({ profile }: { profile: any }) {
         }
     }, [orders, profile.id]);
 
-    // 2. HISTORIAL DE ACTIVIDAD
+    // 2. HISTORIAL DE ACTIVIDAD (Con Sesiones Reales y Orden Descendente)
     useEffect(() => {
-        if (!orders || !auditorias) return;
+        let isMounted = true;
 
-        let timeline: any[] = [];
+        const buildTimeline = async () => {
+            if (!orders || !auditorias) return;
+            setIsLoadingHistory(true);
 
-        // A. Creaciones
-        orders.forEach(order => {
-            if (order.created_by && order.created_by !== profile.id) return;
-            
-            const ecTime = getEcuadorTime(order.created_at);
-            if (ecTime?.dateString === selectedDate) {
-                timeline.push({
-                    id: `create-${order.id}`,
-                    type: 'create',
-                    timeRaw: ecTime.rawDate,
-                    displayTime: ecTime.timeString, // <--- Aquí ya está la hora exacta (-5)
-                    title: "Creaste el pedido",
-                    table_number: order.table_number,
-                    orderData: order, 
-                    color: "#3b82f6" 
+            try {
+                // Traemos todas las sesiones reales de este usuario
+                const { data: sesionesData } = await supabase
+                    .from('registro_sesiones')
+                    .select('*')
+                    .eq('user_id', profile.id);
+
+                let timeline: any[] = [];
+
+                // A. Creaciones de Pedidos
+                orders.forEach(order => {
+                    if (order.created_by && order.created_by !== profile.id) return;
+                    
+                    const ecTime = getEcuadorTime(order.created_at);
+                    if (ecTime?.dateString === selectedDate) {
+                        timeline.push({
+                            id: `create-${order.id}`,
+                            type: 'create',
+                            timeRaw: ecTime.rawDate,
+                            displayTime: ecTime.timeString,
+                            title: "Creaste el pedido",
+                            table_number: order.table_number,
+                            orderData: order, 
+                            color: "#3b82f6" 
+                        });
+                    }
                 });
-            }
-        });
 
-        // B. Auditorías (Ediciones y Cancelaciones)
-        auditorias.forEach(audit => {
-            const isValidUser = audit.usuario === profile.id || audit.usuario === profile.username || audit.usuario === profile.full_name;
-            if (!isValidUser) return;
+                // B. Auditorías (Ediciones y Cancelaciones)
+                auditorias.forEach(audit => {
+                    const isValidUser = audit.usuario === profile.id || audit.usuario === profile.username || audit.usuario === profile.full_name;
+                    if (!isValidUser) return;
 
-            const ecTime = getEcuadorTime(audit.fecha_hora);
-            if (ecTime?.dateString === selectedDate) {
-                const isCancel = audit.estado_pedido?.toLowerCase().includes('eliminado') || audit.estado_pedido?.toLowerCase().includes('cancelado');
-                timeline.push({
-                    id: `audit-${audit.pedido_id}-${audit.fecha_hora}`,
-                    type: isCancel ? 'cancel' : 'update',
-                    timeRaw: ecTime.rawDate,
-                    displayTime: ecTime.timeString, // <--- Aquí ya está la hora exacta (-5)
-                    title: isCancel ? "Cancelaste un pedido" : "Actualizaste un pedido",
-                    table_number: audit.mesa,
-                    orderData: { ...audit, isAudit: true }, 
-                    color: isCancel ? "#ef4444" : "#f59e0b" 
+                    const ecTime = getEcuadorTime(audit.fecha_hora);
+                    if (ecTime?.dateString === selectedDate) {
+                        const isCancel = audit.estado_pedido?.toLowerCase().includes('eliminado') || audit.estado_pedido?.toLowerCase().includes('cancelado');
+                        timeline.push({
+                            id: `audit-${audit.pedido_id}-${audit.fecha_hora}`,
+                            type: isCancel ? 'cancel' : 'update',
+                            timeRaw: ecTime.rawDate,
+                            displayTime: ecTime.timeString,
+                            title: isCancel ? "Cancelaste un pedido" : "Actualizaste un pedido",
+                            table_number: audit.mesa,
+                            orderData: { ...audit, isAudit: true }, 
+                            color: isCancel ? "#ef4444" : "#f59e0b" 
+                        });
+                    }
                 });
+
+                // C. SESIONES REALES (Inicios y Cierres)
+                if (sesionesData) {
+                    sesionesData.forEach(sesion => {
+                        const ecTime = getEcuadorTime(sesion.created_at);
+                        if (ecTime?.dateString === selectedDate) {
+                            const isLogin = sesion.tipo === 'login';
+                            timeline.push({
+                                id: `sesion-${sesion.id}`,
+                                type: 'shift',
+                                timeRaw: ecTime.rawDate,
+                                displayTime: ecTime.timeString,
+                                title: isLogin ? "Turno iniciado" : "Turno terminado",
+                                desc: isLogin ? "Has comenzado tu jornada laboral correctamente." : "Has terminado tu jornada laboral correctamente.",
+                                color: isLogin ? "#10b981" : "#8b5cf6" 
+                            });
+                        }
+                    });
+                }
+
+                // 👇 ¡MAGIA DESCENDENTE! (b - a = El más reciente arriba) 👇
+                timeline.sort((a, b) => b.timeRaw.getTime() - a.timeRaw.getTime());
+
+                if (isMounted) setActivityHistory(timeline);
+            } catch (error) {
+                console.error("Error al construir historial:", error);
+            } finally {
+                if (isMounted) setIsLoadingHistory(false);
             }
-        });
+        };
 
-        // Ordenamos del más viejo al más nuevo
-        timeline.sort((a, b) => a.timeRaw.getTime() - b.timeRaw.getTime());
+        buildTimeline();
 
-        // Simulador de Turnos (Decorativo)
-        if (timeline.length > 0) {
-            const firstEventEcuadorDate = new Date(timeline[0].timeRaw.getTime() - (5 * 60 * 60 * 1000) - (10 * 60000));
-            const hhStart = String(firstEventEcuadorDate.getUTCHours()).padStart(2, '0');
-            const mmStart = String(firstEventEcuadorDate.getUTCMinutes()).padStart(2, '0');
-            
-            timeline.unshift({
-                id: 'start',
-                type: 'shift',
-                timeRaw: new Date(timeline[0].timeRaw.getTime() - 10 * 60000),
-                displayTime: `${hhStart}:${mmStart}`,
-                title: "Turno iniciado",
-                desc: "Has comenzado tu jornada laboral correctamente.",
-                color: "#10b981" 
-            });
-
-            if (selectedDate !== getEcuadorToday()) {
-                const lastEventEcuadorDate = new Date(timeline[timeline.length - 1].timeRaw.getTime() - (5 * 60 * 60 * 1000) + (15 * 60000));
-                const hhEnd = String(lastEventEcuadorDate.getUTCHours()).padStart(2, '0');
-                const mmEnd = String(lastEventEcuadorDate.getUTCMinutes()).padStart(2, '0');
-
-                timeline.push({
-                    id: 'end',
-                    type: 'shift',
-                    timeRaw: new Date(timeline[timeline.length - 1].timeRaw.getTime() + 15 * 60000),
-                    displayTime: `${hhEnd}:${mmEnd}`,
-                    title: "Turno terminado",
-                    desc: "Has terminado tu jornada laboral correctamente.",
-                    color: "#8b5cf6" 
-                });
-            }
-        }
-
-        setActivityHistory(timeline);
+        return () => {
+            isMounted = false;
+        };
     }, [orders, auditorias, selectedDate, profile.id, profile.username, profile.full_name]);
 
     const handleOrderClick = (orderData: any) => {
@@ -211,7 +211,9 @@ export function WaiterProfile({ profile }: { profile: any }) {
                 </div>
 
                 <div className="glass-panel" style={{ padding: "2.5rem" }}>
-                    {activityHistory.length === 0 ? (
+                    {isLoadingHistory ? (
+                        <p style={{ textAlign: "center", color: "var(--text-muted)" }}>Sincronizando historial...</p>
+                    ) : activityHistory.length === 0 ? (
                         <p style={{ textAlign: "center", color: "var(--text-muted)" }}>No hay actividad registrada en esta fecha.</p>
                     ) : (
                         <div style={{ display: "flex", flexDirection: "column", gap: "2rem", borderLeft: "2px solid var(--border)", marginLeft: "1rem", paddingLeft: "2rem" }}>

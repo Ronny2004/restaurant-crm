@@ -4,7 +4,7 @@ import { X } from "lucide-react";
 
 interface BaseModalProps {
     onClose: () => void;
-    children: React.ReactNode; // <--- AQUÍ SE INYECTA EL CONTENIDO
+    children: React.ReactNode;
 }
 
 export function BaseModal({ onClose, children }: BaseModalProps) {

@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 // Subimos un nivel de carpeta ("../") para encontrar estos archivos
-import { AuditoriaEmpleados } from "../auditoriaEmpleados";
+
 
 export function AdminProfile({ profile }: { profile: any }) {
     const router = useRouter();
@@ -208,11 +208,6 @@ export function AdminProfile({ profile }: { profile: any }) {
                     </>
                 )}
 
-                {activeTab === 'audit' && (
-                    <div style={{ marginTop: "1rem" }}>
-                        <AuditoriaEmpleados />
-                    </div>
-                )}
 
                 
 

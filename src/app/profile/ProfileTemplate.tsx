@@ -10,8 +10,8 @@ interface ProfileTemplateProps {
     isLoadingStats: boolean;
     activeModal: string | null;
     setActiveModal: (modal: string | null) => void;
-    modalContent?: React.ReactNode; // El contenido del modal inyectado
-    children?: React.ReactNode;     // El contenido extra (ej. Historial) inyectado
+    modalContent?: React.ReactNode;
+    children?: React.ReactNode;
 }
 
 export function ProfileTemplate({ 

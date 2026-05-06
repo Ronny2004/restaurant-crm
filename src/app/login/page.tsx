@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { LogIn, Loader2 } from "lucide-react";
+import { supabase } from "@/lib/supabaseClient"; 
 
 export default function LoginPage() {
     const [user, setUser] = useState("");
@@ -18,13 +19,26 @@ export default function LoginPage() {
         setError("");
         setLoading(true);
 
-        const { error } = await signIn(user, password);
+        const { error: signInError } = await signIn(user, password);
 
-        if (error) {
+        if (signInError) {
             setError("Credenciales inválidas. Por favor, intenta de nuevo.");
             setLoading(false);
         } else {
-            // Redirect will be handled by the home page based on role
+            // 👇 REGISTRO DE ENTRADA REAL 👇
+            // Obtenemos el usuario que se acaba de loguear
+            const { data: { user: currentUser } } = await supabase.auth.getUser();
+            
+            if (currentUser) {
+                // Guardamos el "fichaje" en la tabla
+                await supabase.from('registro_sesiones').insert({
+                    user_id: currentUser.id,
+                    tipo: 'login'
+                });
+            }
+            // 👆 HASTA AQUÍ LA MAGIA 👆
+
+            // Redirección manejada por la página de inicio según el rol
             router.push("/");
         }
     };
