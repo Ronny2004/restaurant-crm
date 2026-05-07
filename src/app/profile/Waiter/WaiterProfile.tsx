@@ -190,7 +190,7 @@ export function WaiterProfile({ profile }: { profile: any }) {
             isLoadingStats={isLoadingStats}
             activeModal={activeModal}
             setActiveModal={setActiveModal}
-            // modalContent={<WaiterModals activeModal={activeModal} modalData={selectedOrderData} />}
+            modalContent={<WaiterModals activeModal={activeModal} modalData={selectedOrderData} />}
         >
             <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem", marginTop: "1rem" }}>

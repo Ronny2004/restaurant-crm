@@ -14,7 +14,9 @@ import "@/components/integrations/n8n-chat.css";
 // pages means it is never downloaded by /cocina or /mesero at all.
 
 const WEBHOOK_URL =
-    "https://melodyai.app.n8n.cloud/webhook/c0edce0b-4e82-4438-9ef8-c7c3c94b6db9/chat";
+    "";
+    
+    // "https://melodyai.app.n8n.cloud/webhook/c0edce0b-4e82-4438-9ef8-c7c3c94b6db9/chat";
 
 export const N8nChatWidget = () => {
     const pathname = usePathname();
