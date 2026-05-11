@@ -47,6 +47,23 @@ export function WaiterModals({ activeModal, modalData }: WaiterModalsProps) {
             // Detectamos si es una acción de la auditoría (editar/cancelar) o de la tabla orders normal
             const isAudit = modalData.isAudit === true;
 
+            // Lógica para el color del borde
+            let borderColor = '';
+            
+            if (isAudit) {
+                // Si es auditoría (Cancelado o Editado)
+                const estado = modalData.estado_pedido?.toLowerCase() || '';
+                borderColor = estado.includes('eliminado') || estado.includes('cancelado') ? 'var(--status-cancel)' : '#f59e0b';
+            } else {
+                // Si es una orden normal (Tus variables dinámicas)
+                borderColor = 
+                    modalData.status === 'pending' ? 'var(--status-pending)' : 
+                    modalData.status === 'preparing' ? 'var(--status-preparing)' : 
+                    modalData.status === 'served' ? 'var(--status-served)' : 
+                    modalData.status === 'ready' ? 'var(--status-ready)' :  
+                    'var(--status-cancel)';
+            }
+
             return (
                 <div>
                     <h2 style={{ fontSize: "1.8rem", marginBottom: "1.5rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
@@ -56,8 +73,7 @@ export function WaiterModals({ activeModal, modalData }: WaiterModalsProps) {
                     
                     <div className="glass-panel" style={{ 
                         padding: "2rem", 
-                        // Color de borde dinámico: Rojo (eliminado), Amarillo (editado), Azul (creado)
-                        borderLeft: `4px solid ${isAudit ? (modalData.estado_pedido.toLowerCase().includes('eliminado') || modalData.estado_pedido.toLowerCase().includes('cancelado') ? '#ef4444' : '#f59e0b') : '#3b82f6'}` 
+                        borderLeft: `4px solid ${borderColor}` 
                     }}>
                         
                         {/* CABECERA: Mesa y Hora */}
@@ -114,10 +130,12 @@ export function WaiterModals({ activeModal, modalData }: WaiterModalsProps) {
                                         textTransform: "uppercase", 
                                         fontSize: "0.85rem" 
                                     }}>
-                                        {modalData.status === 'served' ? '¡¡Listo p/ servir!!' : 
-                                         modalData.status === 'preparing' ? 'Preparando' : 
-                                         modalData.status === 'pending' ? 'Pendiente' : modalData.status} 
-                                        {modalData.is_paid ? ' - Pagado 💵' : ''}
+                                        {   modalData.status === 'pending' ? 'Pendiente' :
+                                            modalData.status === 'preparing' ? 'Preparando' : 
+                                            modalData.status === 'served' ? '¡¡Listo p/ servir!!' : 
+                                            modalData.status === 'ready' ? 'Listo' : 
+                                            modalData.status} 
+                                        {   modalData.is_paid ? ' - Pagado 💵' : ''}
                                         {/* {modalData.status} */}
                                     </span>
                                 </div>

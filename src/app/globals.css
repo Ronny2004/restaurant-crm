@@ -17,7 +17,7 @@
   --status-editing: var(--text-muted);
   --status-ready: var(--success);
   --status-cancel: var(--danger);
-  --bg-status-pending: #;
+  --bg-status-pending: rgba(234, 179, 8, 0.2);
   --bg-status-preparing: rgba(249, 115, 22, 0.2);
   --bg-status-served: rgba(59, 130, 246, 0.2);
   --bg-status-editing: rgba(255, 255, 255, 0.1);
