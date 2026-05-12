@@ -56,32 +56,113 @@ export function WaiterProfile({ profile }: { profile: any }) {
     const [activityHistory, setActivityHistory] = useState<any[]>([]);
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
-    // 1. MÉTRICAS SUPERIORES
+    // 1. MÉTRICAS SUPERIORES (Con tu fórmula de Productividad)
     useEffect(() => {
-        if (orders) {
-            const activeOrders = orders.filter(o => o.status !== 'ready');
-            const mesasActivasCount = new Set(activeOrders.map(o => o.table_number)).size;
+        let isMounted = true;
 
-            const pedidosHoy = orders.filter(o => {
-                const ecTime = getEcuadorTime(o.created_at);
-                const isMyOrder = o.created_by ? o.created_by === profile.id : true; 
-                return ecTime?.dateString === selectedDate && isMyOrder; // Usamos selectedDate para que cambie si filtras
-            });
+        const calcularMetricas = async () => {
+            if (orders) {
+                // 1. Calculamos mesas activas
+                const activeOrders = orders.filter(o => o.status !== 'ready');
+                const mesasActivasCount = new Set(activeOrders.map(o => o.table_number)).size;
 
-            const cantidadPedidos = pedidosHoy.length;
-            
-            // Guardamos los pedidos para enviarlos al modal
-            setPedidosDelDia(pedidosHoy);
+                // 2. Calculamos los pedidos del día seleccionado
+                const ecuadorHoy = getEcuadorToday();
+                const pedidosHoy = orders.filter(o => {
+                    const ecTime = getEcuadorTime(o.created_at);
+                    const isMyOrder = o.created_by ? o.created_by === profile.id : true; 
+                    return ecTime?.dateString === selectedDate && isMyOrder;
+                });
 
-            setMetrics([
-                { label: "Pedidos Tomados", value: cantidadPedidos, icon: CheckCircle, color: "#10b981", bg: "rgba(16, 185, 129, 0.1)", action: "waiter_orders" },
-                { label: "Productividad", value: cantidadPedidos > 15 ? "Alta 🔥" : "Normal", icon: Activity, color: "#3b82f6", bg: "rgba(59, 130, 246, 0.1)", action: "waiter_performance" },
-                { label: "Mesas Activas", value: mesasActivasCount.toString(), icon: Users, color: "#f59e0b", bg: "rgba(245, 158, 11, 0.1)", action: "waiter_tables" }
-            ]);
-            
-            setIsLoadingStats(false);
-        }
-    }, [orders, profile.id, selectedDate]); // <--- Añadimos selectedDate a las dependencias
+                const cantidadPedidos = pedidosHoy.length;
+                if (isMounted) setPedidosDelDia(pedidosHoy);
+
+                // =====================================
+                // 3. CÁLCULO DE HORAS TRABAJADAS (N_horas)
+                // =====================================
+                let nHoras = 0;
+                
+                try {
+                    const { data: sesionesData } = await supabase
+                        .from('registro_sesiones')
+                        .select('*')
+                        .eq('user_id', profile.id);
+
+                    if (sesionesData) {
+                        const sesionesDelDia = sesionesData.filter((s: any) => getEcuadorTime(s.created_at)?.dateString === selectedDate);
+                        
+                        const logins = sesionesDelDia.filter((s: any) => s.tipo === 'login').map((s: any) => new Date(s.created_at).getTime());
+                        const logouts = sesionesDelDia.filter((s: any) => s.tipo === 'logout').map((s: any) => new Date(s.created_at).getTime());
+                        
+                        const firstLogin = logins.length > 0 ? Math.min(...logins) : null;
+                        let lastActivity = logouts.length > 0 ? Math.max(...logouts) : null;
+
+                        if (firstLogin) {
+                            if (!lastActivity || lastActivity < firstLogin) {
+                                // Si no se ha deslogueado y es hoy, usamos la hora actual
+                                if (selectedDate === ecuadorHoy) {
+                                    lastActivity = new Date().getTime(); 
+                                } else if (pedidosHoy.length > 0) {
+                                    // Si es un día pasado, usamos su último pedido
+                                    lastActivity = Math.max(...pedidosHoy.map(o => new Date(o.created_at).getTime()));
+                                } else {
+                                    lastActivity = firstLogin + (3600 * 1000); // Mínimo 1 hora por defecto
+                                }
+                            }
+                            // Convertimos milisegundos a horas
+                            nHoras = (lastActivity - firstLogin) / (1000 * 60 * 60);
+                        } else if (pedidosHoy.length > 0) {
+                            // Respaldo: si no hay registro de login pero SÍ hizo pedidos
+                            const orderTimes = pedidosHoy.map(o => new Date(o.created_at).getTime());
+                            nHoras = (Math.max(...orderTimes) - Math.min(...orderTimes)) / (1000 * 60 * 60);
+                        }
+                    }
+                } catch (err) {
+                    console.error("Error obteniendo sesiones para métricas:", err);
+                }
+
+                // Redondeamos las horas (Mínimo 1 para que la fórmula no falle si acaba de entrar)
+                nHoras = Math.max(1, Math.round(nHoras));
+
+                // =====================================
+                // 4. TU FÓRMULA MÁGICA: (N_pedido + N_horas) / 2
+                // =====================================
+                const score = (cantidadPedidos + nHoras) / 2;
+
+                let prodLabel = "Baja 💤";
+                let prodColor = "#ef4444"; // Rojo (1 - 4)
+                let prodBg = "rgba(239, 68, 68, 0.1)";
+
+                console.log(`Cálculo de Productividad para ${profile.full_name} el ${selectedDate}:`);
+                console.log(`- Pedidos Tomados: ${cantidadPedidos}`);
+                console.log(`- Horas Trabajadas: ${nHoras.toFixed(2)}`);
+                console.log(`- Score Final: ${score.toFixed(2)}`);
+
+                if (score >= 8) {
+                    prodLabel = "Alta 🔥";
+                    prodColor = "#10b981"; // Verde (8 - 10+)
+                    prodBg = "rgba(16, 185, 129, 0.1)";
+                } else if (score >= 5) {
+                    prodLabel = "Media ⚡";
+                    prodColor = "#f59e0b"; // Amarillo (5 - 7)
+                    prodBg = "rgba(245, 158, 11, 0.1)";
+                }
+
+                if (isMounted) {
+                    setMetrics([
+                        { label: "Pedidos Tomados", value: cantidadPedidos, icon: CheckCircle, color: "#10b981", bg: "rgba(16, 185, 129, 0.1)", action: "waiter_orders" },
+                        { label: "Productividad", value: prodLabel, icon: Activity, color: prodColor, bg: prodBg, action: "waiter_performance" },
+                        { label: "Mesas Activas", value: mesasActivasCount.toString(), icon: Users, color: "#f59e0b", bg: "rgba(245, 158, 11, 0.1)", action: "waiter_tables" }
+                    ]);
+                    setIsLoadingStats(false);
+                }
+            }
+        };
+
+        calcularMetricas();
+
+        return () => { isMounted = false; };
+    }, [orders, profile.id, selectedDate]);
 
     // 2. HISTORIAL DE ACTIVIDAD (Con Sesiones Reales y Orden Descendente)
     useEffect(() => {
