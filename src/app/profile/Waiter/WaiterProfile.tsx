@@ -50,6 +50,7 @@ export function WaiterProfile({ profile }: { profile: any }) {
     const [isLoadingStats, setIsLoadingStats] = useState(true);
     const [activeModal, setActiveModal] = useState<string | null>(null);
     const [selectedOrderData, setSelectedOrderData] = useState<any>(null); 
+    const [pedidosDelDia, setPedidosDelDia] = useState<any[]>([]); // <--- ESTADO NUEVO
 
     const [selectedDate, setSelectedDate] = useState<string>(getEcuadorToday());
     const [activityHistory, setActivityHistory] = useState<any[]>([]);
@@ -61,15 +62,16 @@ export function WaiterProfile({ profile }: { profile: any }) {
             const activeOrders = orders.filter(o => o.status !== 'ready');
             const mesasActivasCount = new Set(activeOrders.map(o => o.table_number)).size;
 
-            const ecuadorHoy = getEcuadorToday();
-            
             const pedidosHoy = orders.filter(o => {
                 const ecTime = getEcuadorTime(o.created_at);
                 const isMyOrder = o.created_by ? o.created_by === profile.id : true; 
-                return ecTime?.dateString === ecuadorHoy && isMyOrder;
+                return ecTime?.dateString === selectedDate && isMyOrder; // Usamos selectedDate para que cambie si filtras
             });
 
             const cantidadPedidos = pedidosHoy.length;
+            
+            // Guardamos los pedidos para enviarlos al modal
+            setPedidosDelDia(pedidosHoy);
 
             setMetrics([
                 { label: "Pedidos Tomados", value: cantidadPedidos, icon: CheckCircle, color: "#10b981", bg: "rgba(16, 185, 129, 0.1)", action: "waiter_orders" },
@@ -79,7 +81,7 @@ export function WaiterProfile({ profile }: { profile: any }) {
             
             setIsLoadingStats(false);
         }
-    }, [orders, profile.id]);
+    }, [orders, profile.id, selectedDate]); // <--- Añadimos selectedDate a las dependencias
 
     // 2. HISTORIAL DE ACTIVIDAD (Con Sesiones Reales y Orden Descendente)
     useEffect(() => {
@@ -190,7 +192,8 @@ export function WaiterProfile({ profile }: { profile: any }) {
             isLoadingStats={isLoadingStats}
             activeModal={activeModal}
             setActiveModal={setActiveModal}
-            modalContent={<WaiterModals activeModal={activeModal} modalData={selectedOrderData} />}
+            // 👇 AQUÍ LE PASAMOS LA LISTA Y LA FUNCIÓN AL MODAL 👇
+            modalContent={<WaiterModals activeModal={activeModal} modalData={selectedOrderData} ordersList={pedidosDelDia} onViewOrder={handleOrderClick} />}
         >
             <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem", marginTop: "1rem" }}>

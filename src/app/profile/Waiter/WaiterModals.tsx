@@ -1,22 +1,79 @@
 "use client";
 
-import { CheckCircle, Activity, Users, ReceiptText, Clock, AlertTriangle } from "lucide-react";
+import { CheckCircle, Activity, Users, ReceiptText, Clock, AlertTriangle, ChevronRight } from "lucide-react";
 
 interface WaiterModalsProps {
     activeModal: string | null;
     modalData?: any; 
+    ordersList?: any[]; // Recibe la lista de pedidos del día
+    onViewOrder?: (orderData: any) => void; // Función que se ejecuta al dar clic a una caja
 }
 
-export function WaiterModals({ activeModal, modalData }: WaiterModalsProps) {
+export function WaiterModals({ activeModal, modalData, ordersList, onViewOrder }: WaiterModalsProps) {
     if (!activeModal) return null;
 
     switch (activeModal) {
+        // ====================================================
+        // MODAL DE HISTORIAL DE PEDIDOS (CAJITAS NAVEGABLES)
+        // ====================================================
         case 'waiter_orders':
             return (
-                <div style={{ textAlign: "center", padding: "2rem 0" }}>
-                    <CheckCircle size={48} color="#10b981" style={{ margin: "0 auto 1rem" }} />
-                    <h2 style={{ fontSize: "1.8rem", marginBottom: "1rem" }}>Historial de tus Pedidos</h2>
-                    <p style={{ color: "var(--text-muted)" }}>Aquí verás la lista detallada de todas las órdenes que has despachado hoy.</p>
+                <div>
+                    <div style={{ textAlign: "center", marginBottom: "2rem" }}>
+                        <CheckCircle size={48} color="#10b981" style={{ margin: "0 auto 1rem" }} />
+                        <h2 style={{ fontSize: "1.8rem", marginBottom: "0.5rem" }}>Tus Pedidos de Hoy</h2>
+                        <p style={{ color: "var(--text-muted)", margin: 0 }}>
+                            Has tomado {ordersList?.length || 0} pedidos durante la fecha seleccionada.
+                        </p>
+                    </div>
+
+                    {/* Contenedor con scroll para las cajitas */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxHeight: "55vh", overflowY: "auto", paddingRight: "0.5rem" }}>
+                        {ordersList && ordersList.length > 0 ? (
+                            // Ordenamos para que los más recientes salgan arriba
+                            [...ordersList].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map((order: any, idx: number) => (
+                                <div 
+                                    key={idx}
+                                    onClick={() => onViewOrder && onViewOrder(order)}
+                                    className="glass-panel"
+                                    style={{
+                                        padding: "1.2rem",
+                                        display: "flex",
+                                        justifyContent: "space-between",
+                                        alignItems: "center",
+                                        cursor: "pointer",
+                                        transition: "background 0.2s ease",
+                                        borderLeft: `4px solid ${
+                                            order.status === 'pending' ? 'var(--status-pending)' : 
+                                            order.status === 'preparing' ? 'var(--status-preparing)' : 
+                                            order.status === 'served' ? 'var(--status-served)' : 
+                                            order.status === 'ready' ? 'var(--status-ready)' :  
+                                            'var(--status-cancel)'
+                                        }`
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                                >
+                                    <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+                                        <span style={{ fontSize: "1.1rem", fontWeight: "bold" }}>Mesa {order.table_number}</span>
+                                        <span style={{ color: "var(--text-muted)", fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "0.3rem" }}>
+                                            <Clock size={14} />
+                                            {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                    </div>
+
+                                    <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+                                        <span style={{ fontWeight: "bold", color: "white" }}>${order.total?.toFixed(2) || "0.00"}</span>
+                                        <ChevronRight size={20} color="var(--text-muted)" />
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div style={{ textAlign: "center", padding: "2rem", background: "rgba(255,255,255,0.02)", borderRadius: "8px" }}>
+                                <p style={{ color: "var(--text-muted)" }}>No hay pedidos registrados.</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
             );
 
@@ -39,23 +96,18 @@ export function WaiterModals({ activeModal, modalData }: WaiterModalsProps) {
             );
 
         // ====================================================
-        // ESTE ES EL NUEVO MODAL MÁGICO DEL DETALLE DE PEDIDO
+        // MODAL DE DETALLE DE PEDIDO (Tus colores dinámicos)
         // ====================================================
         case 'waiter_order_detail':
             if (!modalData) return <div style={{ textAlign: "center", padding: "2rem" }}>Cargando...</div>;
 
-            // Detectamos si es una acción de la auditoría (editar/cancelar) o de la tabla orders normal
             const isAudit = modalData.isAudit === true;
-
-            // Lógica para el color del borde
             let borderColor = '';
             
             if (isAudit) {
-                // Si es auditoría (Cancelado o Editado)
                 const estado = modalData.estado_pedido?.toLowerCase() || '';
                 borderColor = estado.includes('eliminado') || estado.includes('cancelado') ? 'var(--status-cancel)' : '#f59e0b';
             } else {
-                // Si es una orden normal (Tus variables dinámicas)
                 borderColor = 
                     modalData.status === 'pending' ? 'var(--status-pending)' : 
                     modalData.status === 'preparing' ? 'var(--status-preparing)' : 
@@ -111,7 +163,6 @@ export function WaiterModals({ activeModal, modalData }: WaiterModalsProps) {
                             </div>
                         ) : (
                             
-                        
                             <>
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
                                     <span style={{ color: "var(--text-muted)" }}>Estado actual:</span>
@@ -128,7 +179,8 @@ export function WaiterModals({ activeModal, modalData }: WaiterModalsProps) {
                                                 modalData.status === 'ready' ? 'var(--status-ready)' :  
                                                 'var(--status-cancel)',
                                         textTransform: "uppercase", 
-                                        fontSize: "0.85rem" 
+                                        fontSize: "0.85rem",
+                                        fontWeight: "bold"
                                     }}>
                                         {   modalData.status === 'pending' ? 'Pendiente' :
                                             modalData.status === 'preparing' ? 'Preparando' : 
@@ -136,7 +188,6 @@ export function WaiterModals({ activeModal, modalData }: WaiterModalsProps) {
                                             modalData.status === 'ready' ? 'Listo' : 
                                             modalData.status} 
                                         {   modalData.is_paid ? ' - Pagado 💵' : ''}
-                                        {/* {modalData.status} */}
                                     </span>
                                 </div>
 
