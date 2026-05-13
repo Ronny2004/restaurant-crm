@@ -50,13 +50,15 @@ export function WaiterProfile({ profile }: { profile: any }) {
     const [isLoadingStats, setIsLoadingStats] = useState(true);
     const [activeModal, setActiveModal] = useState<string | null>(null);
     const [selectedOrderData, setSelectedOrderData] = useState<any>(null); 
-    const [pedidosDelDia, setPedidosDelDia] = useState<any[]>([]); // <--- ESTADO NUEVO
+    const [pedidosDelDia, setPedidosDelDia] = useState<any[]>([]); 
+    // 👇 ESTADO NUEVO PARA LA GRÁFICA DE RENDIMIENTO
+    const [performanceData, setPerformanceData] = useState<number[]>([]); 
 
     const [selectedDate, setSelectedDate] = useState<string>(getEcuadorToday());
     const [activityHistory, setActivityHistory] = useState<any[]>([]);
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
-    // 1. MÉTRICAS SUPERIORES (Con tu fórmula de Productividad)
+    // 1. MÉTRICAS SUPERIORES (Con fórmula de Productividad y extracción para gráfica)
     useEffect(() => {
         let isMounted = true;
 
@@ -78,9 +80,12 @@ export function WaiterProfile({ profile }: { profile: any }) {
                 if (isMounted) setPedidosDelDia(pedidosHoy);
 
                 // =====================================
-                // 3. CÁLCULO DE HORAS TRABAJADAS (N_horas)
+                // 3. CÁLCULO DE HORAS TRABAJADAS Y GRÁFICA
                 // =====================================
                 let nHoras = 0;
+                let startTime = null;
+                let lastActivity = null;
+                let tempChartData: number[] = [0]; // Arrancamos en 0 pedidos
                 
                 try {
                     const { data: sesionesData } = await supabase
@@ -94,11 +99,11 @@ export function WaiterProfile({ profile }: { profile: any }) {
                         const logins = sesionesDelDia.filter((s: any) => s.tipo === 'login').map((s: any) => new Date(s.created_at).getTime());
                         const logouts = sesionesDelDia.filter((s: any) => s.tipo === 'logout').map((s: any) => new Date(s.created_at).getTime());
                         
-                        const firstLogin = logins.length > 0 ? Math.min(...logins) : null;
-                        let lastActivity = logouts.length > 0 ? Math.max(...logouts) : null;
+                        startTime = logins.length > 0 ? Math.min(...logins) : null;
+                        lastActivity = logouts.length > 0 ? Math.max(...logouts) : null;
 
-                        if (firstLogin) {
-                            if (!lastActivity || lastActivity < firstLogin) {
+                        if (startTime) {
+                            if (!lastActivity || lastActivity < startTime) {
                                 // Si no se ha deslogueado y es hoy, usamos la hora actual
                                 if (selectedDate === ecuadorHoy) {
                                     lastActivity = new Date().getTime(); 
@@ -106,37 +111,46 @@ export function WaiterProfile({ profile }: { profile: any }) {
                                     // Si es un día pasado, usamos su último pedido
                                     lastActivity = Math.max(...pedidosHoy.map(o => new Date(o.created_at).getTime()));
                                 } else {
-                                    lastActivity = firstLogin + (3600 * 1000); // Mínimo 1 hora por defecto
+                                    lastActivity = startTime + (3600 * 1000); // Mínimo 1 hora por defecto
                                 }
                             }
-                            // Convertimos milisegundos a horas
-                            nHoras = (lastActivity - firstLogin) / (1000 * 60 * 60);
                         } else if (pedidosHoy.length > 0) {
                             // Respaldo: si no hay registro de login pero SÍ hizo pedidos
                             const orderTimes = pedidosHoy.map(o => new Date(o.created_at).getTime());
-                            nHoras = (Math.max(...orderTimes) - Math.min(...orderTimes)) / (1000 * 60 * 60);
+                            startTime = Math.min(...orderTimes);
+                            lastActivity = Math.max(...orderTimes);
+                        }
+
+                        // Construimos los puntos para la gráfica (Hora x Hora)
+                        if (startTime && lastActivity && lastActivity >= startTime) {
+                            nHoras = (lastActivity - startTime) / (1000 * 60 * 60);
+                            const totalHoursInt = Math.max(1, Math.ceil(nHoras)); 
+                            
+                            for (let i = 1; i <= totalHoursInt; i++) {
+                                const limitTime = startTime + (i * 3600000); // Sumamos 1 hora en milisegundos
+                                const ordersUpToNow = pedidosHoy.filter(o => new Date(o.created_at).getTime() <= limitTime).length;
+                                tempChartData.push(ordersUpToNow);
+                            }
+                        } else {
+                            tempChartData = [0, pedidosHoy.length]; 
                         }
                     }
                 } catch (err) {
                     console.error("Error obteniendo sesiones para métricas:", err);
+                    tempChartData = [0, pedidosHoy.length];
                 }
 
                 // Redondeamos las horas (Mínimo 1 para que la fórmula no falle si acaba de entrar)
                 nHoras = Math.max(1, Math.round(nHoras));
 
                 // =====================================
-                // 4. TU FÓRMULA MÁGICA: (N_pedido + N_horas) / 2
+                // 4. FÓRMULA MÁGICA: (N_pedido + N_horas) / 2
                 // =====================================
                 const score = (cantidadPedidos + nHoras) / 2;
 
                 let prodLabel = "Baja 💤";
                 let prodColor = "#ef4444"; // Rojo (1 - 4)
                 let prodBg = "rgba(239, 68, 68, 0.1)";
-
-                console.log(`Cálculo de Productividad para ${profile.full_name} el ${selectedDate}:`);
-                console.log(`- Pedidos Tomados: ${cantidadPedidos}`);
-                console.log(`- Horas Trabajadas: ${nHoras.toFixed(2)}`);
-                console.log(`- Score Final: ${score.toFixed(2)}`);
 
                 if (score >= 8) {
                     prodLabel = "Alta 🔥";
@@ -149,6 +163,7 @@ export function WaiterProfile({ profile }: { profile: any }) {
                 }
 
                 if (isMounted) {
+                    setPerformanceData(tempChartData); // Guardamos la curva para el modal
                     setMetrics([
                         { label: "Pedidos Tomados", value: cantidadPedidos, icon: CheckCircle, color: "#10b981", bg: "rgba(16, 185, 129, 0.1)", action: "waiter_orders" },
                         { label: "Productividad", value: prodLabel, icon: Activity, color: prodColor, bg: prodBg, action: "waiter_performance" },
@@ -240,7 +255,6 @@ export function WaiterProfile({ profile }: { profile: any }) {
                     });
                 }
 
-                // 👇 ¡MAGIA DESCENDENTE! (b - a = El más reciente arriba) 👇
                 timeline.sort((a, b) => b.timeRaw.getTime() - a.timeRaw.getTime());
 
                 if (isMounted) setActivityHistory(timeline);
@@ -273,8 +287,8 @@ export function WaiterProfile({ profile }: { profile: any }) {
             isLoadingStats={isLoadingStats}
             activeModal={activeModal}
             setActiveModal={setActiveModal}
-            // 👇 AQUÍ LE PASAMOS LA LISTA Y LA FUNCIÓN AL MODAL 👇
-            modalContent={<WaiterModals activeModal={activeModal} modalData={selectedOrderData} ordersList={pedidosDelDia} onViewOrder={handleOrderClick} />}
+            // 👇 SE LE PASA LA CURVA (performanceData) AL COMPONENTE DEL MODAL 👇
+            modalContent={<WaiterModals activeModal={activeModal} modalData={selectedOrderData} ordersList={pedidosDelDia} performanceData={performanceData} onViewOrder={handleOrderClick} />}
         >
             <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem", marginTop: "1rem" }}>
