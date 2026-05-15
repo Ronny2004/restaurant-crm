@@ -34,6 +34,13 @@ export default function MeseroPage() {
     const [selectedProductToAdd, setSelectedProductToAdd] = useState<string>("");
     const [originalStatus, setOriginalStatus] = useState<any>(null); // NUEVO ESTADO
 
+    // Calculamos la hora de Ecuador
+    const now = new Date();
+    const ecuadorTime = new Date(now.getTime() );
+    // Formateamos sin la Z para que Supabase la acepte como literal
+    const fechaEcuador = ecuadorTime.toISOString().replace('Z', ''); 
+
+
     // 1. useEffect (Control de acceso y carga de productos)
     useEffect(() => {
         if (!authLoading && (!profile || (profile.role !== "waiter" && profile.role !== "admin"))) {
@@ -104,7 +111,8 @@ export default function MeseroPage() {
         if (!table || cart.length === 0) return;
         setSubmitting(true);
         try {
-            await createOrder(table, cart);
+            await createOrder(table, cart, fechaEcuador); 
+            
             setCart([]);
             setTable("");
             toast("Pedido enviado a cocina!", "success");
@@ -250,7 +258,7 @@ export default function MeseroPage() {
         setSubmitting(true);
         try {
             // Usa el editTotal que ya calcula correctamente el precio
-            await updateOrder(editingOrder.id, { items: editCart, total: editTotal });
+            await updateOrder(editingOrder.id, { items: editCart, total: editTotal }, fechaEcuador);
             
             // Restauramos al estado original para que el cajero/cocinero puedan volver a verlo
             if (originalStatus !== null) {
@@ -277,7 +285,7 @@ export default function MeseroPage() {
     const handleDeleteOrder = async () => {
         if (deletingOrder) {
             try {
-                await deleteOrder(deletingOrder.id);
+                await deleteOrder(deletingOrder.id, fechaEcuador);
                 
                 setDeletingOrder(null);
                 toast("Orden eliminada con éxito", "success");

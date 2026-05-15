@@ -233,7 +233,7 @@ export const useOrders = () => {
 
     // ── CRUD mutations ─────────────────────────────────────────────────────
 
-    const createOrder = async (table: string, items: { product: Product; quantity: number }[]) => {
+    const createOrder = async (table: string, items: { product: Product; quantity: number }[], fechaExacta?: string) => {
         const total = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
         const user = (await supabase.auth.getUser()).data.user;
 
@@ -253,14 +253,21 @@ export const useOrders = () => {
         if (rpcError) throw rpcError;
 
         if (orderId) {
+            if (fechaExacta) {
+                await supabase.from('orders').update({ created_at: fechaExacta }).eq('id', orderId);
+            }
+
             const username = await getCurrentUsername();
+
             await supabase.from("reporte_ventas").insert({
                 pedido_id: orderId,
                 mesa: table,
                 mesero: username ?? "Desconocido",
                 estado: "pending",
                 monto: total,
+                created_at: fechaExacta || new Date().toISOString(), 
             });
+
             // The INSERT Realtime event will update the map automatically.
             // We call fetchOrderById defensively in case the socket has latency.
             const newOrder = await fetchOrderById(orderId);
@@ -269,8 +276,8 @@ export const useOrders = () => {
             }
         }
     };
-
-    const updateOrder = async (orderId: string, updates: { items: any[]; total: number }) => {
+    
+    const updateOrder = async (orderId: string, updates: { items: any[]; total: number }, fechaExacta?: string) => {
         const { data: orderData } = await supabase
             .from("orders")
             .select("table_number")
@@ -295,7 +302,13 @@ export const useOrders = () => {
             .join(", ");
 
         // Apply mutations
-        const { error: orderError } = await supabase.from("orders").update({ total: updates.total }).eq("id", orderId);
+        const { error: orderError } = await supabase
+            .from("orders")
+            .update({ 
+                total: updates.total, 
+                updated_at: fechaExacta || new Date().toISOString()
+            })
+            .eq("id", orderId);
         if (orderError) throw orderError;
 
         await supabase.from("reporte_ventas").update({ monto: updates.total }).eq("pedido_id", orderId);
@@ -328,7 +341,7 @@ export const useOrders = () => {
                 estado_pedido: "Editado",
                 pedido_original: pedidoOriginal,
                 pedido_actualizado: pedidoActualizado,
-                fecha_hora: new Date().toISOString(),
+                fecha_hora: fechaExacta || new Date().toISOString(),
             };
 
             if (existingAudit) {
@@ -346,9 +359,26 @@ export const useOrders = () => {
         if (fresh) setOrdersMap((prev) => ({ ...prev, [fresh.id]: fresh }));
     };
 
-    const deleteOrder = async (id: string) => {
+    const deleteOrder = async (id: string, fechaExacta?: string) => {
         const username = await getCurrentUsername();
 
+        // 1. Buscamos qué mesa es ANTES de borrarla (lo necesitamos para la auditoría)
+        const { data: orderData } = await supabase.from("orders").select("table_number").eq("id", id).single();
+        const tableNumber = orderData?.table_number ?? "Desconocida";
+
+        // 👇 2. EL ESCUDO PROTECTOR: Creamos la auditoría manualmente con TU fecha 👇
+        await supabase.from("auditoria_pedidos").insert({
+            pedido_id: id,
+            mesa: tableNumber,
+            usuario: username ?? "Desconocido",
+            estado_pedido: "Cancelado",
+            pedido_original: "Orden eliminada",
+            pedido_actualizado: "N/A",
+            // ESTA ES LA CLAVE: Forzamos la hora de Ecuador para la línea de tiempo
+            fecha_hora: fechaExacta || new Date().toISOString() 
+        });
+
+        // 3. Ahora sí, borramos la orden original
         const { data: deletedData, error: deleteError } = await supabase
             .from("orders")
             .delete()
@@ -358,13 +388,22 @@ export const useOrders = () => {
         if (deleteError) throw deleteError;
         if (!deletedData?.length) throw new Error(`No se pudo eliminar la orden ${id}.`);
 
+        // 4. Actualizamos el reporte de ventas con tu fecha
+        const updatePayload: any = { 
+            estado: "canceled", 
+            cancelado_por: username ?? "Desconocido" 
+        };
+        
+        if (fechaExacta) {
+            updatePayload.fecha_hora = fechaExacta; 
+        }
+
         await supabase
             .from("reporte_ventas")
-            .update({ estado: "canceled", cancelado_por: username ?? "Desconocido" })
+            .update(updatePayload)
             .eq("pedido_id", id);
 
-        // The DELETE Realtime handler will remove it from the map,
-        // but we also do it synchronously for instant UI feedback.
+        // 5. Actualizamos la interfaz
         setOrdersMap((prev) => {
             const next = { ...prev };
             delete next[id];

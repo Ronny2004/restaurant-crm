@@ -124,15 +124,28 @@ export function WaiterProfile({ profile }: { profile: any }) {
                         // Construimos los puntos para la gráfica (Hora x Hora)
                         if (startTime && lastActivity && lastActivity >= startTime) {
                             nHoras = (lastActivity - startTime) / (1000 * 60 * 60);
-                            const totalHoursInt = Math.max(1, Math.ceil(nHoras)); 
                             
-                            for (let i = 1; i <= totalHoursInt; i++) {
-                                const limitTime = startTime + (i * 3600000); // Sumamos 1 hora en milisegundos
-                                const ordersUpToNow = pedidosHoy.filter(o => new Date(o.created_at).getTime() <= limitTime).length;
-                                tempChartData.push(ordersUpToNow);
+                            if (nHoras < 1) {
+                                // --- FASE MINUTOS (0 a 60 min) ---
+                                tempChartData = [0]; // Empezamos en 0 pedidos al min 0
+                                // Creamos 6 puntos (cada 10 minutos)
+                                for (let i = 1; i <= 6; i++) {
+                                    const limitTime = startTime + (i * 10 * 60000); // i * 10 minutos
+                                    const ordersUpToNow = pedidosHoy.filter(o => new Date(o.created_at).getTime() <= limitTime).length;
+                                    tempChartData.push(ordersUpToNow);
+                                }
+                            } else {
+                                // --- FASE HORAS (1h en adelante) ---
+                                const totalHoursInt = Math.max(1, Math.ceil(nHoras)); 
+                                tempChartData = [0];
+                                for (let i = 1; i <= totalHoursInt; i++) {
+                                    const limitTime = startTime + (i * 3600000);
+                                    const ordersUpToNow = pedidosHoy.filter(o => new Date(o.created_at).getTime() <= limitTime).length;
+                                    tempChartData.push(ordersUpToNow);
+                                }
                             }
                         } else {
-                            tempChartData = [0, pedidosHoy.length]; 
+                            tempChartData = [0, pedidosHoy.length];
                         }
                     }
                 } catch (err) {

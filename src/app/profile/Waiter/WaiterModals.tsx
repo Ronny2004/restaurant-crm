@@ -56,18 +56,29 @@ export function WaiterModals({ activeModal, modalData, ordersList, performanceDa
         // MODAL DE RENDIMIENTO (GRÁFICA CON DATOS REALES)
         // ====================================================
         case 'waiter_performance':
-            // 👇 AQUÍ USAMOS LOS DATOS REALES DEL PERFIL 👇
-            // Si performanceData no existe o está vacío, ponemos datos base para que no falle
-            const chartData = (performanceData && performanceData.length > 0) ? performanceData : [0];
+            const chartData = (performanceData && performanceData.length > 0) ? performanceData : [0, 0];
             
-            // Calculamos el Eje Y (Máximo de pedidos de ese día)
+            // Detectamos si estamos en modo minutos o modo horas
+            // Si hay exactamente 7 puntos y el tiempo total es < 1.1 horas, es el modo minutos
+            const isMinuteView = chartData.length === 7; 
+            
             const maxOrders = Math.max(...chartData);
-            const maxVal = Math.max(5, Math.ceil(maxOrders / 5) * 5); // Escala en múltiplos de 5 (mínimo 5)
+            const maxVal = Math.max(5, Math.ceil(maxOrders / 5) * 5);
             const yLabels = [maxVal, maxVal * 0.8, maxVal * 0.6, maxVal * 0.4, maxVal * 0.2, 0].map(v => Math.round(v));
             
-            // Calculamos el Eje X (Horas trabajadas)
-            const totalHours = Math.max(1, chartData.length - 1); 
-            const xLabels = [0, 0.2, 0.4, 0.6, 0.8, 1].map(pct => Math.round(totalHours * pct));
+            // Configuración dinámica del Eje X
+            let xLabels: any[] = [];
+            let xAxisTitle = "";
+
+            if (isMinuteView) {
+                xLabels = [0, 10, 20, 30, 40, 50, 60];
+                xAxisTitle = "Minutos Transcurridos (Primeros 60 min)";
+            } else {
+                const totalHours = Math.max(1, chartData.length - 1); 
+                // Generamos etiquetas de horas
+                xLabels = [0, 0.2, 0.4, 0.6, 0.8, 1].map(pct => Math.round(totalHours * pct));
+                xAxisTitle = "Horas Trabajadas (Acumuladas)";
+            }
 
             const chartHeight = 250;
             const chartWidth = 600;
@@ -96,22 +107,21 @@ export function WaiterModals({ activeModal, modalData, ordersList, performanceDa
                     <div style={{ textAlign: "center", marginBottom: "2.5rem" }}>
                         <Activity size={48} color="#ef4444" style={{ margin: "0 auto 1rem" }} />
                         <h2 style={{ fontSize: "1.8rem", marginBottom: "0.5rem" }}>Curva de Productividad</h2>
-                        <p style={{ color: "var(--text-muted)", margin: 0 }}>Crecimiento de pedidos en las últimas {totalHours} horas trabajadas.</p>
+                        <p style={{ color: "var(--text-muted)", margin: 0 }}>
+                            {isMinuteView ? "Análisis detallado de tu primera hora." : `Progreso histórico de tu turno.`}
+                        </p>
                     </div>
 
                     <div className="animate-wrapper" style={{ position: "relative", width: "100%", maxWidth: "650px", margin: "0 auto", padding: "1rem 2rem 2rem 4rem" }}>
                         
-                        {/* ETIQUETA EJE Y */}
                         <div style={{ position: "absolute", left: "-60px", top: "50%", transform: "translateY(-50%) rotate(-90deg)", color: "var(--text-muted)", fontWeight: "bold", fontSize: "0.9rem", letterSpacing: "1px", width: "200px", textAlign: "center" }}>
                             Total de Pedidos
                         </div>
 
-                        {/* NÚMEROS EJE Y DINÁMICOS */}
                         <div style={{ position: "absolute", left: "10px", top: "1rem", bottom: "2.5rem", display: "flex", flexDirection: "column", justifyContent: "space-between", color: "var(--text-muted)", fontSize: "0.8rem", fontWeight: "bold", textAlign: "right", paddingRight: "10px" }}>
                             {yLabels.map((val, i) => <span key={i}>{val}</span>)}
                         </div>
 
-                        {/* LIENZO SVG */}
                         <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} style={{ width: "100%", height: "auto", overflow: "visible" }}>
                             <polyline points={`0,0 0,${chartHeight} ${chartWidth},${chartHeight}`} fill="none" stroke="#334155" strokeWidth="3" />
                             <path className="animate-line" d={linePath} fill="none" stroke="#ef4444" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
@@ -125,14 +135,12 @@ export function WaiterModals({ activeModal, modalData, ordersList, performanceDa
                             })}
                         </svg>
 
-                        {/* NÚMEROS EJE X DINÁMICOS */}
                         <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-muted)", fontSize: "0.8rem", fontWeight: "bold", marginTop: "1rem" }}>
                             {xLabels.map((val, i) => <span key={i}>{val}</span>)}
                         </div>
 
-                        {/* ETIQUETA EJE X */}
                         <div style={{ textAlign: "center", color: "var(--text-muted)", fontWeight: "bold", fontSize: "0.9rem", marginTop: "1.5rem", letterSpacing: "1px" }}>
-                            Horas Trabajadas (Acumuladas)
+                            {xAxisTitle}
                         </div>
                     </div>
                 </div>
