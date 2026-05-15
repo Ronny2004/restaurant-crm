@@ -6,11 +6,20 @@ interface WaiterModalsProps {
     activeModal: string | null;
     modalData?: any; 
     ordersList?: any[]; 
-    performanceData?: number[]; // <--- ¡AQUÍ ESTÁ EL ARREGLO DEL ERROR!
+    performanceData?: number[];
+    activeTablesList?: any[];
+    profile?: any;
     onViewOrder?: (orderData: any) => void; 
 }
 
-export function WaiterModals({ activeModal, modalData, ordersList, performanceData, onViewOrder }: WaiterModalsProps) {
+export function WaiterModals({ 
+    activeModal, 
+    modalData, 
+    ordersList, 
+    performanceData, 
+    profile,
+    onViewOrder
+}: WaiterModalsProps) {
     if (!activeModal) return null;
 
     switch (activeModal) {
@@ -147,14 +156,109 @@ export function WaiterModals({ activeModal, modalData, ordersList, performanceDa
             );
 
         // ====================================================
-        // MODAL DE MESAS ACTIVAS
+        // MODAL DE MESAS ACTIVAS (VISTA DE MAPA/CUADRÍCULA)
         // ====================================================
         case 'waiter_tables':
+            // 1. Filtramos solo los pedidos que están activos (ni listos ni cancelados)
+            const activeOrdersForTables = ordersList?.filter(o => 
+                o.status !== 'ready' && 
+                !o.status?.toLowerCase().includes('cancel')
+            ) || [];
+
+            // 2. Agrupamos por mesa (por si una mesa hizo 2 pedidos por separado, mostramos 1 sola mesa)
+            const mesasActivas = activeOrdersForTables.reduce((acc: any, order: any) => {
+                if (!acc[order.table_number]) {
+                    acc[order.table_number] = order;
+                }
+                return acc;
+            }, {});
+
+            const tablesArray = Object.values(mesasActivas);
+
             return (
-                <div style={{ textAlign: "center", padding: "2rem 0" }}>
-                    <Users size={48} color="#f59e0b" style={{ margin: "0 auto 1rem" }} />
-                    <h2 style={{ fontSize: "1.8rem", marginBottom: "1.5rem" }}>Tus Mesas Activas</h2>
-                    <p style={{ color: "var(--text-muted)" }}>Las mesas que actualmente estás atendiendo.</p>
+                <div>
+                    <div style={{ textAlign: "center", marginBottom: "2rem" }}>
+                        <Users size={48} color="#f59e0b" style={{ margin: "0 auto 1rem" }} />
+                        <h2 style={{ fontSize: "1.8rem", marginBottom: "0.5rem" }}>Tus Mesas Activas</h2>
+                        <p style={{ color: "var(--text-muted)", margin: 0 }}>
+                            Tienes {tablesArray.length} {tablesArray.length === 1 ? 'mesa' : 'mesas'} en atención ahora mismo.
+                        </p>
+                    </div>
+
+                    {tablesArray.length > 0 ? (
+                        <div style={{ 
+                            display: "grid", 
+                            gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", 
+                            gap: "2rem",
+                            padding: "1rem" 
+                        }}>
+                            {tablesArray.map((order: any, idx: number) => {
+                                // Colores dinámicos según tu sistema
+                                const statusColor = 
+                                    order.status === 'pending' ? 'var(--status-pending)' : 
+                                    order.status === 'preparing' ? 'var(--status-preparing)' : 
+                                    order.status === 'served' ? 'var(--status-served)' : '#64748b';
+                                
+                                const statusText = 
+                                    order.status === 'pending' ? 'Esperando' : 
+                                    order.status === 'preparing' ? 'En Cocina' : 
+                                    order.status === 'served' ? 'Comiendo' : order.status;
+
+                                return (
+                                    <div 
+                                        key={idx}
+                                        onClick={() => onViewOrder && onViewOrder(order)}
+                                        style={{
+                                            aspectRatio: "1", // Lo hace un cuadrado perfecto
+                                            display: "flex",
+                                            flexDirection: "column",
+                                            justifyContent: "center",
+                                            alignItems: "center",
+                                            cursor: "pointer",
+                                            borderRadius: "50%", // Lo convierte en un círculo (¡Una mesa!)
+                                            border: `4px solid ${statusColor}`,
+                                            background: "rgba(255,255,255,0.03)",
+                                            transition: "all 0.2s ease",
+                                            boxShadow: `0 0 20px ${statusColor}20`,
+                                            position: "relative"
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.transform = "scale(1.05)";
+                                            e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.transform = "scale(1)";
+                                            e.currentTarget.style.background = "rgba(255,255,255,0.03)";
+                                        }}
+                                    >
+                                        <span style={{ fontSize: "1rem", color: "var(--text-muted)", marginBottom: "-0.3rem" }}>Mesa</span>
+                                        <span style={{ fontSize: "3rem", fontWeight: "bold", color: "white" }}>{order.table_number}</span>
+                                        
+                                        <span style={{ 
+                                            position: "absolute",
+                                            bottom: "-10px",
+                                            fontSize: "0.8rem", 
+                                            fontWeight: "bold", 
+                                            color: statusColor, 
+                                            background: "#0f172a", // Fondo oscuro para que tape el borde
+                                            border: `2px solid ${statusColor}`,
+                                            padding: "0.2rem 0.8rem",
+                                            borderRadius: "12px",
+                                            textTransform: "uppercase"
+                                        }}>
+                                            {statusText}
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div style={{ textAlign: "center", padding: "4rem 2rem", background: "rgba(255,255,255,0.02)", borderRadius: "12px" }}>
+                            <div style={{ fontSize: "4rem", marginBottom: "1rem", opacity: 0.5 }}>🪑</div>
+                            <h3 style={{ color: "white", marginBottom: "0.5rem", fontSize: "1.5rem" }}>Todo despejado</h3>
+                            <p style={{ color: "var(--text-muted)" }}>No tienes ninguna mesa activa en este momento.</p>
+                        </div>
+                    )}
                 </div>
             );
 

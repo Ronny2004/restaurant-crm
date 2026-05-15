@@ -51,8 +51,11 @@ export function WaiterProfile({ profile }: { profile: any }) {
     const [activeModal, setActiveModal] = useState<string | null>(null);
     const [selectedOrderData, setSelectedOrderData] = useState<any>(null); 
     const [pedidosDelDia, setPedidosDelDia] = useState<any[]>([]); 
-    // 👇 ESTADO NUEVO PARA LA GRÁFICA DE RENDIMIENTO
+    // 👇 ESTADO PARA LA GRÁFICA DE RENDIMIENTO
     const [performanceData, setPerformanceData] = useState<number[]>([]); 
+    
+    // 👇 ESTADO NUEVO PARA LAS MESAS ACTIVAS
+    const [activeTablesData, setActiveTablesData] = useState<any[]>([]);
 
     const [selectedDate, setSelectedDate] = useState<string>(getEcuadorToday());
     const [activityHistory, setActivityHistory] = useState<any[]>([]);
@@ -64,9 +67,14 @@ export function WaiterProfile({ profile }: { profile: any }) {
 
         const calcularMetricas = async () => {
             if (orders) {
-                // 1. Calculamos mesas activas
-                const activeOrders = orders.filter(o => o.status !== 'ready');
-                const mesasActivasCount = new Set(activeOrders.map(o => o.table_number)).size;
+                // 1. Calculamos mesas activas en TIEMPO REAL (sin filtro de fecha)
+                const misPedidosActivos = orders.filter(o => 
+                    o.status !== 'ready' && 
+                    !o.status?.toLowerCase().includes('cancel') &&
+                    (o.created_by ? o.created_by === profile.id : true)
+                );
+                const mesasActivasCount = new Set(misPedidosActivos.map(o => o.table_number)).size;
+                if (isMounted) setActiveTablesData(misPedidosActivos);
 
                 // 2. Calculamos los pedidos del día seleccionado
                 const ecuadorHoy = getEcuadorToday();
@@ -300,8 +308,18 @@ export function WaiterProfile({ profile }: { profile: any }) {
             isLoadingStats={isLoadingStats}
             activeModal={activeModal}
             setActiveModal={setActiveModal}
-            // 👇 SE LE PASA LA CURVA (performanceData) AL COMPONENTE DEL MODAL 👇
-            modalContent={<WaiterModals activeModal={activeModal} modalData={selectedOrderData} ordersList={pedidosDelDia} performanceData={performanceData} onViewOrder={handleOrderClick} />}
+            // 👇 SE LE PASAN LOS DATOS DE LAS MESAS ACTIVAS Y EL PERFIL 👇
+            modalContent={
+                <WaiterModals 
+                    activeModal={activeModal} 
+                    modalData={selectedOrderData} 
+                    ordersList={pedidosDelDia} 
+                    performanceData={performanceData} 
+                    activeTablesList={activeTablesData} 
+                    profile={profile}
+                    onViewOrder={handleOrderClick} 
+                />
+            }
         >
             <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem", marginTop: "1rem" }}>
