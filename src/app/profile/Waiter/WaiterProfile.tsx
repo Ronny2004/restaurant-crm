@@ -7,23 +7,17 @@ import { ProfileTemplate } from "../ProfileTemplate";
 import { WaiterModals } from "./WaiterModals";
 import { useOrders } from "@/hooks/useOrders"; 
 
-// ==========================================
-// CÁLCULO MATEMÁTICO ESTRICTO UTC-5 (ECUADOR)
-// ==========================================
 const getEcuadorToday = () => {
     const now = new Date();
     const ecDate = new Date(now.getTime() - (5 * 60 * 60 * 1000));
-    
     const yyyy = ecDate.getUTCFullYear();
     const mm = String(ecDate.getUTCMonth() + 1).padStart(2, '0');
     const dd = String(ecDate.getUTCDate()).padStart(2, '0');
-    
     return `${yyyy}-${mm}-${dd}`; 
 };
 
 const getEcuadorTime = (dateString: string) => {
     if (!dateString) return null;
-    
     const safeString = dateString.includes('T') ? dateString : dateString.replace(' ', 'T');
     const finalString = (safeString.endsWith('Z') || safeString.includes('+')) ? safeString : `${safeString}Z`;
     const dateObj = new Date(finalString);
@@ -51,32 +45,27 @@ export function WaiterProfile({ profile }: { profile: any }) {
     const [activeModal, setActiveModal] = useState<string | null>(null);
     const [selectedOrderData, setSelectedOrderData] = useState<any>(null); 
     const [pedidosDelDia, setPedidosDelDia] = useState<any[]>([]); 
-    // 👇 ESTADO PARA LA GRÁFICA DE RENDIMIENTO
     const [performanceData, setPerformanceData] = useState<number[]>([]); 
-    
-    // 👇 ESTADO NUEVO PARA LAS MESAS ACTIVAS
     const [activeTablesData, setActiveTablesData] = useState<any[]>([]);
-
     const [selectedDate, setSelectedDate] = useState<string>(getEcuadorToday());
     const [activityHistory, setActivityHistory] = useState<any[]>([]);
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
-    // 1. MÉTRICAS SUPERIORES (Con fórmula de Productividad y extracción para gráfica)
     useEffect(() => {
         let isMounted = true;
 
         const calcularMetricas = async () => {
             if (orders) {
-                // 1. Calculamos mesas activas en TIEMPO REAL (sin filtro de fecha)
-                const misPedidosActivos = orders.filter(o => 
+                // 👇 MAGIA AQUÍ: Traemos TODAS las mesas activas de TODO el restaurante 👇
+                const todasLasMesasActivas = orders.filter(o => 
                     o.status !== 'ready' && 
-                    !o.status?.toLowerCase().includes('cancel') &&
-                    (o.created_by ? o.created_by === profile.id : true)
+                    !o.status?.toLowerCase().includes('cancel')
                 );
-                const mesasActivasCount = new Set(misPedidosActivos.map(o => o.table_number)).size;
-                if (isMounted) setActiveTablesData(misPedidosActivos);
+                
+                // Mantenemos el conteo solo para el número de la tarjeta (para que no sea confuso si una mesa tiene 2 pedidos)
+                const mesasActivasCount = new Set(todasLasMesasActivas.map(o => o.table_number)).size;
+                if (isMounted) setActiveTablesData(todasLasMesasActivas);
 
-                // 2. Calculamos los pedidos del día seleccionado
                 const ecuadorHoy = getEcuadorToday();
                 const pedidosHoy = orders.filter(o => {
                     const ecTime = getEcuadorTime(o.created_at);
@@ -87,23 +76,16 @@ export function WaiterProfile({ profile }: { profile: any }) {
                 const cantidadPedidos = pedidosHoy.length;
                 if (isMounted) setPedidosDelDia(pedidosHoy);
 
-                // =====================================
-                // 3. CÁLCULO DE HORAS TRABAJADAS Y GRÁFICA
-                // =====================================
                 let nHoras = 0;
                 let startTime = null;
                 let lastActivity = null;
-                let tempChartData: number[] = [0]; // Arrancamos en 0 pedidos
+                let tempChartData: number[] = [0]; 
                 
                 try {
-                    const { data: sesionesData } = await supabase
-                        .from('registro_sesiones')
-                        .select('*')
-                        .eq('user_id', profile.id);
+                    const { data: sesionesData } = await supabase.from('registro_sesiones').select('*').eq('user_id', profile.id);
 
                     if (sesionesData) {
                         const sesionesDelDia = sesionesData.filter((s: any) => getEcuadorTime(s.created_at)?.dateString === selectedDate);
-                        
                         const logins = sesionesDelDia.filter((s: any) => s.tipo === 'login').map((s: any) => new Date(s.created_at).getTime());
                         const logouts = sesionesDelDia.filter((s: any) => s.tipo === 'logout').map((s: any) => new Date(s.created_at).getTime());
                         
@@ -112,38 +94,31 @@ export function WaiterProfile({ profile }: { profile: any }) {
 
                         if (startTime) {
                             if (!lastActivity || lastActivity < startTime) {
-                                // Si no se ha deslogueado y es hoy, usamos la hora actual
                                 if (selectedDate === ecuadorHoy) {
                                     lastActivity = new Date().getTime(); 
                                 } else if (pedidosHoy.length > 0) {
-                                    // Si es un día pasado, usamos su último pedido
                                     lastActivity = Math.max(...pedidosHoy.map(o => new Date(o.created_at).getTime()));
                                 } else {
-                                    lastActivity = startTime + (3600 * 1000); // Mínimo 1 hora por defecto
+                                    lastActivity = startTime + (3600 * 1000); 
                                 }
                             }
                         } else if (pedidosHoy.length > 0) {
-                            // Respaldo: si no hay registro de login pero SÍ hizo pedidos
                             const orderTimes = pedidosHoy.map(o => new Date(o.created_at).getTime());
                             startTime = Math.min(...orderTimes);
                             lastActivity = Math.max(...orderTimes);
                         }
 
-                        // Construimos los puntos para la gráfica (Hora x Hora)
                         if (startTime && lastActivity && lastActivity >= startTime) {
                             nHoras = (lastActivity - startTime) / (1000 * 60 * 60);
                             
                             if (nHoras < 1) {
-                                // --- FASE MINUTOS (0 a 60 min) ---
-                                tempChartData = [0]; // Empezamos en 0 pedidos al min 0
-                                // Creamos 6 puntos (cada 10 minutos)
+                                tempChartData = [0]; 
                                 for (let i = 1; i <= 6; i++) {
-                                    const limitTime = startTime + (i * 10 * 60000); // i * 10 minutos
+                                    const limitTime = startTime + (i * 10 * 60000); 
                                     const ordersUpToNow = pedidosHoy.filter(o => new Date(o.created_at).getTime() <= limitTime).length;
                                     tempChartData.push(ordersUpToNow);
                                 }
                             } else {
-                                // --- FASE HORAS (1h en adelante) ---
                                 const totalHoursInt = Math.max(1, Math.ceil(nHoras)); 
                                 tempChartData = [0];
                                 for (let i = 1; i <= totalHoursInt; i++) {
@@ -161,33 +136,29 @@ export function WaiterProfile({ profile }: { profile: any }) {
                     tempChartData = [0, pedidosHoy.length];
                 }
 
-                // Redondeamos las horas (Mínimo 1 para que la fórmula no falle si acaba de entrar)
                 nHoras = Math.max(1, Math.round(nHoras));
-
-                // =====================================
-                // 4. FÓRMULA MÁGICA: (N_pedido + N_horas) / 2
-                // =====================================
                 const score = (cantidadPedidos + nHoras) / 2;
 
                 let prodLabel = "Baja 💤";
-                let prodColor = "#ef4444"; // Rojo (1 - 4)
+                let prodColor = "#ef4444"; 
                 let prodBg = "rgba(239, 68, 68, 0.1)";
 
                 if (score >= 8) {
                     prodLabel = "Alta 🔥";
-                    prodColor = "#10b981"; // Verde (8 - 10+)
+                    prodColor = "#10b981"; 
                     prodBg = "rgba(16, 185, 129, 0.1)";
                 } else if (score >= 5) {
                     prodLabel = "Media ⚡";
-                    prodColor = "#f59e0b"; // Amarillo (5 - 7)
+                    prodColor = "#f59e0b"; 
                     prodBg = "rgba(245, 158, 11, 0.1)";
                 }
 
                 if (isMounted) {
-                    setPerformanceData(tempChartData); // Guardamos la curva para el modal
+                    setPerformanceData(tempChartData);
                     setMetrics([
                         { label: "Pedidos Tomados", value: cantidadPedidos, icon: CheckCircle, color: "#10b981", bg: "rgba(16, 185, 129, 0.1)", action: "waiter_orders" },
                         { label: "Productividad", value: prodLabel, icon: Activity, color: prodColor, bg: prodBg, action: "waiter_performance" },
+                        // 👇 LA TARJETA TAMBIÉN MOSTRARÁ EL CONTEO GLOBAL DE MESAS 👇
                         { label: "Mesas Activas", value: mesasActivasCount.toString(), icon: Users, color: "#f59e0b", bg: "rgba(245, 158, 11, 0.1)", action: "waiter_tables" }
                     ]);
                     setIsLoadingStats(false);
@@ -196,88 +167,46 @@ export function WaiterProfile({ profile }: { profile: any }) {
         };
 
         calcularMetricas();
-
         return () => { isMounted = false; };
     }, [orders, profile.id, selectedDate]);
 
-    // 2. HISTORIAL DE ACTIVIDAD (Con Sesiones Reales y Orden Descendente)
     useEffect(() => {
         let isMounted = true;
-
         const buildTimeline = async () => {
             if (!orders || !auditorias) return;
             setIsLoadingHistory(true);
-
             try {
-                // Traemos todas las sesiones reales de este usuario
-                const { data: sesionesData } = await supabase
-                    .from('registro_sesiones')
-                    .select('*')
-                    .eq('user_id', profile.id);
-
+                const { data: sesionesData } = await supabase.from('registro_sesiones').select('*').eq('user_id', profile.id);
                 let timeline: any[] = [];
 
-                // A. Creaciones de Pedidos
                 orders.forEach(order => {
                     if (order.created_by && order.created_by !== profile.id) return;
-                    
                     const ecTime = getEcuadorTime(order.created_at);
                     if (ecTime?.dateString === selectedDate) {
-                        timeline.push({
-                            id: `create-${order.id}`,
-                            type: 'create',
-                            timeRaw: ecTime.rawDate,
-                            displayTime: ecTime.timeString,
-                            title: "Creaste el pedido",
-                            table_number: order.table_number,
-                            orderData: order, 
-                            color: "#3b82f6" 
-                        });
+                        timeline.push({ id: `create-${order.id}`, type: 'create', timeRaw: ecTime.rawDate, displayTime: ecTime.timeString, title: "Creaste el pedido", table_number: order.table_number, orderData: order, color: "#3b82f6" });
                     }
                 });
 
-                // B. Auditorías (Ediciones y Cancelaciones)
                 auditorias.forEach(audit => {
                     const isValidUser = audit.usuario === profile.id || audit.usuario === profile.username || audit.usuario === profile.full_name;
                     if (!isValidUser) return;
-
                     const ecTime = getEcuadorTime(audit.fecha_hora);
                     if (ecTime?.dateString === selectedDate) {
                         const isCancel = audit.estado_pedido?.toLowerCase().includes('eliminado') || audit.estado_pedido?.toLowerCase().includes('cancelado');
-                        timeline.push({
-                            id: `audit-${audit.pedido_id}-${audit.fecha_hora}`,
-                            type: isCancel ? 'cancel' : 'update',
-                            timeRaw: ecTime.rawDate,
-                            displayTime: ecTime.timeString,
-                            title: isCancel ? "Cancelaste un pedido" : "Actualizaste un pedido",
-                            table_number: audit.mesa,
-                            orderData: { ...audit, isAudit: true }, 
-                            color: isCancel ? "#ef4444" : "#f59e0b" 
-                        });
+                        timeline.push({ id: `audit-${audit.pedido_id}-${audit.fecha_hora}`, type: isCancel ? 'cancel' : 'update', timeRaw: ecTime.rawDate, displayTime: ecTime.timeString, title: isCancel ? "Cancelaste un pedido" : "Actualizaste un pedido", table_number: audit.mesa, orderData: { ...audit, isAudit: true }, color: isCancel ? "#ef4444" : "#f59e0b" });
                     }
                 });
 
-                // C. SESIONES REALES (Inicios y Cierres)
                 if (sesionesData) {
                     sesionesData.forEach(sesion => {
                         const ecTime = getEcuadorTime(sesion.created_at);
                         if (ecTime?.dateString === selectedDate) {
                             const isLogin = sesion.tipo === 'login';
-                            timeline.push({
-                                id: `sesion-${sesion.id}`,
-                                type: 'shift',
-                                timeRaw: ecTime.rawDate,
-                                displayTime: ecTime.timeString,
-                                title: isLogin ? "Turno iniciado" : "Turno terminado",
-                                desc: isLogin ? "Has comenzado tu jornada laboral correctamente." : "Has terminado tu jornada laboral correctamente.",
-                                color: isLogin ? "#10b981" : "#8b5cf6" 
-                            });
+                            timeline.push({ id: `sesion-${sesion.id}`, type: 'shift', timeRaw: ecTime.rawDate, displayTime: ecTime.timeString, title: isLogin ? "Turno iniciado" : "Turno terminado", desc: isLogin ? "Has comenzado tu jornada laboral correctamente." : "Has terminado tu jornada laboral correctamente.", color: isLogin ? "#10b981" : "#8b5cf6" });
                         }
                     });
                 }
-
                 timeline.sort((a, b) => b.timeRaw.getTime() - a.timeRaw.getTime());
-
                 if (isMounted) setActivityHistory(timeline);
             } catch (error) {
                 console.error("Error al construir historial:", error);
@@ -285,12 +214,8 @@ export function WaiterProfile({ profile }: { profile: any }) {
                 if (isMounted) setIsLoadingHistory(false);
             }
         };
-
         buildTimeline();
-
-        return () => {
-            isMounted = false;
-        };
+        return () => { isMounted = false; };
     }, [orders, auditorias, selectedDate, profile.id, profile.username, profile.full_name]);
 
     const handleOrderClick = (orderData: any) => {
@@ -308,7 +233,6 @@ export function WaiterProfile({ profile }: { profile: any }) {
             isLoadingStats={isLoadingStats}
             activeModal={activeModal}
             setActiveModal={setActiveModal}
-            // 👇 SE LE PASAN LOS DATOS DE LAS MESAS ACTIVAS Y EL PERFIL 👇
             modalContent={
                 <WaiterModals 
                     activeModal={activeModal} 
@@ -329,13 +253,7 @@ export function WaiterProfile({ profile }: { profile: any }) {
                     
                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", background: "rgba(255,255,255,0.05)", padding: "0.5rem 1rem", borderRadius: "8px", border: "1px solid var(--border)" }}>
                         <Calendar size={18} color="var(--text-muted)" />
-                        <input 
-                            type="date" 
-                            value={selectedDate}
-                            onChange={(e) => setSelectedDate(e.target.value)}
-                            max={getEcuadorToday()} 
-                            style={{ background: "transparent", border: "none", color: "white", outline: "none", cursor: "pointer", fontFamily: "inherit" }}
-                        />
+                        <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} max={getEcuadorToday()} style={{ background: "transparent", border: "none", color: "white", outline: "none", cursor: "pointer", fontFamily: "inherit" }} />
                     </div>
                 </div>
 
@@ -346,11 +264,9 @@ export function WaiterProfile({ profile }: { profile: any }) {
                         <p style={{ textAlign: "center", color: "var(--text-muted)" }}>No hay actividad registrada en esta fecha.</p>
                     ) : (
                         <div style={{ display: "flex", flexDirection: "column", gap: "2rem", borderLeft: "2px solid var(--border)", marginLeft: "1rem", paddingLeft: "2rem" }}>
-                            
                             {activityHistory.map((item) => (
                                 <div key={item.id} style={{ position: "relative" }}>
                                     <div style={{ position: "absolute", left: "-39px", top: "4px", width: "14px", height: "14px", borderRadius: "50%", background: item.color, border: "3px solid #0f172a" }} />
-                                    
                                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                                         <div>
                                             {item.type === 'shift' ? (
@@ -361,23 +277,16 @@ export function WaiterProfile({ profile }: { profile: any }) {
                                             ) : (
                                                 <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "1.1rem" }}>
                                                     {item.title} de la {' '}
-                                                    <span 
-                                                        onClick={() => handleOrderClick(item.orderData)}
-                                                        style={{ color: item.color, textDecoration: "underline", cursor: "pointer", fontWeight: "bold" }}
-                                                    >
-                                                        mesa {item.table_number}
-                                                    </span>
+                                                    <span onClick={() => handleOrderClick(item.orderData)} style={{ color: item.color, textDecoration: "underline", cursor: "pointer", fontWeight: "bold" }}>mesa {item.table_number}</span>
                                                 </p>
                                             )}
                                         </div>
-                                        
                                         <span style={{ fontSize: "0.85rem", color: "var(--text-muted)", fontWeight: "bold", background: "rgba(255,255,255,0.05)", padding: "0.2rem 0.5rem", borderRadius: "4px" }}>
                                             {item.displayTime}
                                         </span>
                                     </div>
                                 </div>
                             ))}
-                            
                         </div>
                     )}
                 </div>

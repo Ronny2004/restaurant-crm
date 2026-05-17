@@ -31,9 +31,20 @@ const fetchOrderById = async (id: string): Promise<Order | null> => {
 
     if (error || !data) return null;
 
+    let matchedProfile = null;
+    if (data.created_by) {
+        const { data: profileData } = await supabase
+            .from("profiles")
+            .select("id, full_name, username, avatar_url")
+            .eq("id", data.created_by)
+            .single();
+        matchedProfile = profileData;
+    }
+
     return {
         ...data,
         created_by: data.created_by,
+        profiles: matchedProfile,
         updated_at: data.updated_at,
         status: data.status_order?.status ?? "pending",
         status_description: data.status_order?.description ?? "",
@@ -90,11 +101,17 @@ export const useOrders = () => {
             return;
         }
 
+        const { data: profilesData } = await supabase
+            .from("profiles")
+            .select("id, full_name, username, avatar_url");
+
         const newMap: Record<string, Order> = {};
         data.forEach((order: any) => {
+            const userProfile = profilesData?.find((p: any) => p.id === order.created_by);
             newMap[order.id] = {
                 ...order,
                 created_by: order.created_by,
+                profiles: userProfile,
                 updated_at: order.updated_at,
                 status: order.status_order?.status ?? "pending",
                 status_description: order.status_order?.description ?? "",
