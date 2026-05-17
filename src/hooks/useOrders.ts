@@ -118,7 +118,7 @@ export const useOrders = () => {
                 items: (order.items ?? []).map((item: any) => ({
                     ...item,
                     product_name: item.product?.name ?? "Desconocido",
-                })),
+                })), 
             };
         });
 
