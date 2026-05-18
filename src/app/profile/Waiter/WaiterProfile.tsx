@@ -190,10 +190,34 @@ export function WaiterProfile({ profile }: { profile: any }) {
                 auditorias.forEach(audit => {
                     const isValidUser = audit.usuario === profile.id || audit.usuario === profile.username || audit.usuario === profile.full_name;
                     if (!isValidUser) return;
+                    
                     const ecTime = getEcuadorTime(audit.fecha_hora);
                     if (ecTime?.dateString === selectedDate) {
-                        const isCancel = audit.estado_pedido?.toLowerCase().includes('eliminado') || audit.estado_pedido?.toLowerCase().includes('cancelado');
-                        timeline.push({ id: `audit-${audit.pedido_id}-${audit.fecha_hora}`, type: isCancel ? 'cancel' : 'update', timeRaw: ecTime.rawDate, displayTime: ecTime.timeString, title: isCancel ? "Cancelaste un pedido" : "Actualizaste un pedido", table_number: audit.mesa, orderData: { ...audit, isAudit: true }, color: isCancel ? "#ef4444" : "#f59e0b" });
+                        const estado = audit.estado_pedido?.toLowerCase() || '';
+                        let color = "#f59e0b"; 
+                        let title = "Se ha actualizado el pedido";
+                        
+                        // 👇 TUS 2 LOGS PROFESIONALES POR PEDIDO 👇
+                        if (estado.includes('cocina') || estado.includes('preparando') || estado.includes('preparing')) {
+                            color = "var(--status-preparing)";
+                            title = "Se ha comenzado la preparación del pedido"; // -> Renderiza: "Se ha comenzado la preparación del pedido de la mesa #"
+                        } else if (estado.includes('listo') || estado.includes('ready')) {
+                            color = "var(--status-ready)";
+                            title = "Se ha completado la preparación del pedido"; // -> Renderiza: "Se ha completado la preparación del pedido de la mesa #"
+                        } else {
+                            title = `Se registró cambio a [${audit.estado_pedido}] para el pedido`;
+                        }
+
+                        timeline.push({ 
+                            id: `audit-${audit.pedido_id}-${audit.fecha_hora}`, 
+                            type: 'audit', 
+                            timeRaw: ecTime.rawDate, 
+                            displayTime: ecTime.timeString, 
+                            title: title, 
+                            table_number: audit.mesa, 
+                            orderData: { ...audit, isAudit: true }, 
+                            color: color 
+                        });
                     }
                 });
 
