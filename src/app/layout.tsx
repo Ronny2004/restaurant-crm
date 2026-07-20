@@ -1,14 +1,10 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "@/app/globals.css"
+import "@/app/globals.css";
 import { Providers } from "@/components/layout/Providers";
-import { N8nChatWidget } from "@/components/integrations/N8nChatWidget";
-
-const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Restaurante CRM",
-  description: "Sistema de gestión integral para restaurantes",
+  title: "Delicias Morán",
+  description: "Sistema interno de gestión del restaurante Delicias Morán",
 };
 
 export default function RootLayout({
@@ -18,13 +14,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <body className={inter.className}>
+      <body>
         <div className="app-background">
           <Providers>
             {children}
           </Providers>
         </div>
-        <N8nChatWidget />
       </body>
     </html>
   );

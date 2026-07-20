@@ -1,22 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useAuth } from "@/context/AuthContext";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 
-import { Product } from "@/types";
+import { Order, OrderItem, Product } from "@/types";
 import { useOrders } from "@/hooks/useOrders";
 import { useMenu } from "@/hooks/useMenu";
-import { Plus, Minus, ShoppingCart, Loader2, Edit2, Trash2, Send, X, CheckCircle } from "lucide-react";
+import { Plus, Minus, ShoppingCart, Loader2, Edit2, Trash2, CheckCircle } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 import { Modal } from "@/components/ui/Modal";
 import { Header } from "@/components/layout/Header";
 
 export default function MeseroPage() {
-    const { profile, loading: authLoading } = useAuth();
-    const router = useRouter();
     const { products, loadingMenu: supabaseLoading, fetchProducts } = useMenu();
-    const { orders, createOrder, updateOrder, deleteOrder, updateOrderStatus, fetchOrders } = useOrders();
+    const { orders, createOrder, updateOrder, deleteOrder, updateOrderStatus } = useOrders();
     const toast = useToast();
     
     // Estados para la creación de una NUEVA orden
@@ -28,22 +24,19 @@ export default function MeseroPage() {
     const [deletingOrder, setDeletingOrder] = useState<{ id: string; table_number: string } | null>(null);
 
     // Estados para EDITAR una orden existente
-    const [editingOrder, setEditingOrder] = useState<any | null>(null);
-    const [editCart, setEditCart] = useState<any[]>([]);
+    type EditableItem = Partial<OrderItem> & {
+        product?: Product;
+        product_id: string;
+        quantity: number;
+        price: number;
+    };
+    const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+    const [editCart, setEditCart] = useState<EditableItem[]>([]);
     const [selectedProductToAdd, setSelectedProductToAdd] = useState<string>("");
-
-    useEffect(() => {
-        if (!authLoading && (!profile || (profile.role !== "waiter" && profile.role !== "admin"))) {
-            router.push("/login");
-        }
-        if (!authLoading && profile && products.length === 0) {
-            fetchProducts();
-        }
-    }, [authLoading, profile, router, products.length, fetchProducts]);
 
     const productosDisponibles = products.filter(p => p.stock > 0);
 
-    if (authLoading || (supabaseLoading && products.length === 0)) {
+    if (supabaseLoading && products.length === 0) {
         return (
             <div className="container" style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <div style={{ textAlign: 'center' }}>
@@ -91,7 +84,7 @@ export default function MeseroPage() {
             setCart([]);
             setTable("");
             toast("Pedido enviado a cocina!", "success");
-        } catch (error) {
+        } catch {
             toast("Error al enviar el pedido", "error");
         } finally {
             setSubmitting(false);
@@ -99,7 +92,7 @@ export default function MeseroPage() {
     };
 
     // --- FUNCIONES PARA EDITAR ORDEN EXISTENTE ---
-    const openEditModal = (order: any) => {
+    const openEditModal = (order: Order) => {
         setEditingOrder(order);
         setEditCart(order.items ? [...order.items] : []);
         setSelectedProductToAdd("");
@@ -111,7 +104,7 @@ export default function MeseroPage() {
             const existing = prev.find(p => (p.product?.id || p.product_id) === productId);
 
             // 1. Calculamos el límite real nuevamente
-            const originalItem = editingOrder?.items?.find((item: any) => (item.product?.id || item.product_id) === productId);
+            const originalItem = editingOrder?.items?.find((item) => item.product_id === productId);
             const originalQty = originalItem ? originalItem.quantity : 0;
             const maxAllowed = originalQty + (product ? product.stock : 0);
 
@@ -139,7 +132,7 @@ export default function MeseroPage() {
         if (!product) return;
 
         // 1. Buscamos cuánto de este producto ya tenía el pedido originalmente
-        const originalItem = editingOrder?.items?.find((item: any) => (item.product?.id || item.product_id) === product.id);
+        const originalItem = editingOrder?.items?.find((item) => item.product_id === product.id);
         const originalQty = originalItem ? originalItem.quantity : 0;
         
         // 2. Calculamos el límite real (Lo que ya tenía + el stock disponible)
@@ -162,7 +155,7 @@ export default function MeseroPage() {
             }
             
             setTimeout(() => toast(`Agregado: ${product.name}`, "info"), 0);
-            return [...prev, { product, quantity: 1 }];
+            return [...prev, { product, product_id: product.id, quantity: 1, price: product.price }];
         });
         
         setSelectedProductToAdd(""); 
@@ -178,8 +171,15 @@ export default function MeseroPage() {
             setEditingOrder(null);
             setEditCart([]);
             toast("¡Pedido actualizado exitosamente!", "success");
-        } catch (error) {
-            toast("Error al actualizar el pedido", "error");
+        } catch (error: unknown) {
+            const message = typeof error === "object"
+                && error !== null
+                && "message" in error
+                && typeof error.message === "string"
+                ? error.message
+                : "Error desconocido de Supabase";
+            toast(`No se pudo guardar: ${message}`, "error");
+            console.error("Error al actualizar el pedido:", error);
         } finally {
             setSubmitting(false);
         }
@@ -194,11 +194,10 @@ export default function MeseroPage() {
                 
                 setDeletingOrder(null);
                 toast("Orden eliminada con éxito", "success");
-            } catch (error: any) {
-                const errorMessage = error.message || "Error al eliminar orden";
+            } catch (error: unknown) {
+                const errorMessage = error instanceof Error ? error.message : "Error al eliminar orden";
                 toast(errorMessage, "error");
                 
-                fetchOrders();
             } finally {
                 setDeletingOrder(null);
             }
@@ -207,9 +206,9 @@ export default function MeseroPage() {
 
     const handleMarkAsServed = async (orderId: string) => {
         try {
-            await updateOrderStatus(orderId, 'ready' as any);
+            await updateOrderStatus(orderId, "ready");
             toast("¡Pedido servido con éxito!", "success");
-        } catch (error: any) {
+        } catch (error: unknown) {
             toast("Error al actualizar el estado", "error");
             console.error(error);
         }
@@ -465,14 +464,14 @@ export default function MeseroPage() {
                                 <option value="">+ Agregar plato o bebida...</option>
                                 {productosDisponibles.map(p => {
                                     // 1. Buscamos cuánto de este producto ya tenía el pedido originalmente
-                                    const originalItem = editingOrder?.items?.find((item: any) => (item.product?.id || item.product_id) === p.id);
+                                    const originalItem = editingOrder?.items?.find((item) => item.product_id === p.id);
                                     const originalQty = originalItem ? originalItem.quantity : 0;
                                     
                                     // 2. Límite máximo (lo que ya tenía la orden + lo que queda en la BD)
                                     const maxAllowed = originalQty + p.stock;
                                     
                                     // 3. Cuánto de este producto hemos puesto AHORA MISMO en el carrito de edición
-                                    const editCartItem = editCart.find((item: any) => (item.product?.id || item.product_id) === p.id);
+                                    const editCartItem = editCart.find((item) => (item.product?.id || item.product_id) === p.id);
                                     const currentEditQty = editCartItem ? editCartItem.quantity : 0;
                                     
                                     // 4. Calculamos el stock visual restante

@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { User, Session } from "@supabase/supabase-js";
+import { AuthError, User, Session } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 
 export type UserRole = "admin" | "waiter" | "chef" | "cashier";
@@ -20,7 +20,7 @@ type AuthContextType = {
     profile: UserProfile | null;
     session: Session | null;
     loading: boolean;
-    signIn: (user: string, password: string) => Promise<{ error: any }>;
+    signIn: (user: string, password: string) => Promise<{ error: AuthError | Error | null }>;
     signOut: () => Promise<void>;
     hasRole: (roles: UserRole[]) => boolean;
 };
@@ -95,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 .rpc('get_email_by_username', { p_username: user });
 
             if (searchError || !emailAsociado) {
-                return { error: { message: "Credenciales inválidas" } };
+                return { error: new Error("Credenciales inválidas") };
             }
 
             loginEmail = emailAsociado;

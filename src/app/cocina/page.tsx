@@ -1,8 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useAuth } from "@/context/AuthContext";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { Order } from "@/types";
 import { useOrders } from "@/hooks/useOrders";
 import { Clock, CheckCircle, Loader2 } from "lucide-react";
@@ -10,24 +8,11 @@ import { useToast } from "@/context/ToastContext";
 import { Header } from "@/components/layout/Header";
 
 export default function CocinaPage() {
-    const { profile, loading: authLoading } = useAuth();
-    const router = useRouter();
-    const { loadingOrders: loading, orders, updateOrderStatus, fetchOrders } = useOrders();
+    const { loadingOrders: loading, orders, updateOrderStatus } = useOrders();
     const toast = useToast();
     const [processingId, setProcessingId] = useState<string | null>(null);
 
-    // 1. Protección y Carga Inicial Forzada
-    useEffect(() => {
-        if (!authLoading && (!profile || (profile.role !== "chef" && profile.role !== "admin"))) {
-            router.push("/login");
-        }
-        // Si entramos y no hay órdenes, forzamos carga
-        if (!authLoading && profile && orders.length === 0) {
-            fetchOrders();
-        }
-    }, [authLoading, profile, router, orders.length, fetchOrders]);
-
-    if (authLoading || (loading && orders.length === 0)) {
+    if (loading && orders.length === 0) {
         return (
             <div className="container" style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Loader2 size={48} className="animate-spin" style={{ color: "var(--primary)" }} />
@@ -54,8 +39,7 @@ export default function CocinaPage() {
                 "success"
             );
 
-            fetchOrders();
-        } catch (error) {
+        } catch {
             toast("Error al actualizar estado", "error");
         } finally {
             setProcessingId(null);

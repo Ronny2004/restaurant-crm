@@ -81,10 +81,9 @@ export function Header() {
         await signOut();
     };
 
-    // Función mágica para forzar la recarga completa de la página
-    const forceReloadNavigation = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
-        e.preventDefault(); // Detenemos el comportamiento por defecto
-        window.location.href = href; // Obligamos al navegador a hacer una petición nueva al servidor
+    const navigate = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+        e.preventDefault();
+        router.push(href);
     };
 
     return (
@@ -127,7 +126,7 @@ export function Header() {
                                         {/* Usamos <a> en lugar de <Link> para forzar recarga */}
                                         <a 
                                             href={item.href}
-                                            onClick={(e) => forceReloadNavigation(e, item.href)}
+                                onClick={(e) => navigate(e, item.href)}
                                             style={{ 
                                                 display: "flex", 
                                                 flexDirection: "column", 
@@ -179,7 +178,7 @@ export function Header() {
                                                         <a 
                                                             key={sIdx} 
                                                             href={sub.href}
-                                                            onClick={(e) => forceReloadNavigation(e, sub.href)}
+                                                            onClick={(e) => navigate(e, sub.href)}
                                                             style={{ 
                                                                 padding: "0.6rem", 
                                                                 color: "white", 
@@ -308,7 +307,7 @@ export function Header() {
                             <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                 <a 
                                     href={item.href}
-                                    onClick={(e) => forceReloadNavigation(e, item.href)}
+                                    onClick={(e) => navigate(e, item.href)}
                                     style={{
                                         display: 'flex', 
                                         alignItems: 'center', 
@@ -334,7 +333,7 @@ export function Header() {
                                                 <a 
                                                     key={sIdx}
                                                     href={sub.href}
-                                                    onClick={(e) => forceReloadNavigation(e, sub.href)}
+                                                    onClick={(e) => navigate(e, sub.href)}
                                                     style={{
                                                         color: isSubActive ? 'white' : 'var(--text-muted)',
                                                         textDecoration: 'none',

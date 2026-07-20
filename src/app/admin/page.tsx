@@ -1,16 +1,15 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { useAuth } from "@/context/AuthContext";
-import { useRouter } from "next/navigation";
+import { useState, useRef } from "react";
 
 import { Product } from "@/types";
 import { useMenu } from "@/hooks/useMenu";
 import { useOrders } from "@/hooks/useOrders";
 import Link from "next/link";
+import Image from "next/image";
 import { 
     TrendingUp, Package, Users, 
-    DollarSign, Loader2, Plus, 
+    DollarSign, Plus,
     Edit2, Trash2, X, Check, ImageIcon 
 } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
@@ -18,10 +17,8 @@ import { Modal } from "@/components/ui/Modal";
 import { Header } from "@/components/layout/Header";
 
 export default function AdminPage() {
-    const { profile, loading: authLoading, signOut } = useAuth();
-    const router = useRouter();
     const { 
-        products, loadingMenu,
+        products,
         createProduct, 
         updateProduct, 
         deleteProduct 
@@ -39,26 +36,11 @@ export default function AdminPage() {
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Protección de ruta (CORREGIDO: Bucle infinito eliminado)
-    useEffect(() => {
-        if (!authLoading && (!profile || profile.role !== "admin")) {
-            router.push("/login");
-        }
-    }, [authLoading, profile, router]);
-
-    if (authLoading || !profile || profile.role !== "admin") {
-        return (
-            <div className="container" style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Loader2 size={48} style={{ animation: "spin 1s linear infinite", color: "var(--primary)" }} />
-            </div>
-        );
-    }    // Cálculos de Estadísticas
+    // Cálculos de estadísticas
     const totalSales = orders
         .filter(o => o.is_paid) 
         .reduce((sum, o) => sum + (o.total || 0), 0); // Seguro contra totales nulos
 
-    const totalPaidOrders = orders.filter(o => o.is_paid).length;
-    
     const totalOrders = orders.length;
 
     // Producto más vendido (CORREGIDO: Crash de pantalla blanca evitado)
@@ -80,7 +62,7 @@ export default function AdminPage() {
             setFormData({ name: "", price: 0, category: "", stock: 0 });
             setSelectedFile(null);
             toast("Producto creado exitosamente", "success");
-        } catch (error) {
+        } catch {
             toast("Error al crear producto", "error");
         }
     };
@@ -92,7 +74,7 @@ export default function AdminPage() {
             setFormData({ name: "", price: 0, category: "", stock: 0 });
             setSelectedFile(null);
             toast("Producto actualizado", "success");
-        } catch (error) {
+        } catch {
             toast("Error al actualizar producto", "error");
         }
     };
@@ -103,8 +85,8 @@ export default function AdminPage() {
                 await deleteProduct(deletingProduct.id);
                 setDeletingProduct(null);
                 toast("Producto eliminado con éxito", "success");
-            } catch (error: any) {
-                const errorMessage = error.message || "Error al eliminar producto";
+            } catch (error: unknown) {
+                const errorMessage = error instanceof Error ? error.message : "Error al eliminar producto";
                 toast(errorMessage, "error");
             } finally {
                 setDeletingProduct(null);
@@ -352,7 +334,7 @@ export default function AdminPage() {
                                     <>
                                         <td style={{ padding: "1rem" }}>
                                             {product.image_url ? (
-                                                <img src={product.image_url} alt={product.name} style={{ width: '45px', height: '45px', borderRadius: '8px', objectFit: 'cover' }} />
+                                                <Image src={product.image_url} alt={product.name} width={45} height={45} style={{ borderRadius: '8px', objectFit: 'cover' }} />
                                             ) : (
                                                 <div style={{ width: '45px', height: '45px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                     <ImageIcon size={20} opacity={0.2} />
@@ -431,7 +413,7 @@ export default function AdminPage() {
                             fontSize: "1.1rem" 
                         }}
                     >
-                        ¿Estás seguro de eliminar <strong style={{ color: "white" }}>"{deletingProduct?.name}"</strong>?
+                        ¿Estás seguro de eliminar <strong style={{ color: "white" }}>“{deletingProduct?.name}”</strong>?
                         <br />
                         <span style={{ fontSize: "0.9rem" }}>Esta acción no se puede deshacer.</span>
                     </p>

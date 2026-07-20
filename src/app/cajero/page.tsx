@@ -2,18 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { useRouter } from "next/navigation";
-import { Order, PaymentType } from "@/types";
+import { PaymentType } from "@/types";
 import { supabase } from "@/lib/supabaseClient";
 import { useOrders } from "@/hooks/useOrders";
 import { Header } from "@/components/layout/Header";
-import { DollarSign, Loader2, Lock } from "lucide-react";
+import { DollarSign, Lock } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 import { Modal } from "@/components/ui/Modal";
 
 export default function CajeroPage() {
-    const { profile, loading: authLoading } = useAuth();
-    const router = useRouter();
+    const { profile } = useAuth();
     const { loadingOrders: loading, orders, markOrderAsPaid } = useOrders();
     const [paymentTypes, setPaymentTypes] = useState<PaymentType[]>([]);
     const [confirmingPay, setConfirmingPay] = useState<string | null>(null);
@@ -43,20 +41,6 @@ export default function CajeroPage() {
         }
     };
 
-    useEffect(() => {
-        if (!authLoading && (!profile || (profile.role !== "cashier" && profile.role !== "admin"))) {
-            router.push("/login");
-        }
-    }, [authLoading, profile, router]);
-
-    if (authLoading || !profile || (profile.role !== "cashier" && profile.role !== "admin")) {
-        return (
-            <div className="container" style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Loader2 size={48} style={{ animation: "spin 1s linear infinite", color: "var(--primary)" }} />
-            </div>
-        );
-    }
-
     // Filtramos las no pagadas y las ordenamos por fecha (las más recientes arriba)
     const unpaidOrders = orders
         .filter(o => !o.is_paid)
@@ -71,7 +55,7 @@ export default function CajeroPage() {
                 setConfirmingPay(null);
                 setPaymentMethod("");
                 toast("Pago registrado correctamente", "success");
-            } catch (error) {
+        } catch {
                 toast("Error al procesar el pago", "error");
             }
         }
@@ -100,7 +84,7 @@ export default function CajeroPage() {
                         ) : (
                             unpaidOrders.map((order) => {
                                 // Administradores pueden cobrar siempre, cajeros solo si la comida ya fue servida
-                                const canPay = profile.role === 'admin' || order.status === 'ready';
+                                const canPay = profile?.role === 'admin' || order.status === 'ready';
                                 const statusConfig = getStatusConfig(order.status);
 
                                 return (
@@ -114,7 +98,7 @@ export default function CajeroPage() {
                                         <td style={{ padding: "1rem" }}>
                                             <div style={{ color: "white" }}>{order.items.length} items</div>
                                             <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginTop: "0.25rem", maxWidth: "200px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                                {order.items.map((i: any) => i.product?.name || i.product_name).join(", ")}
+                                                {order.items.map((item) => item.product_name).join(", ")}
                                             </div>
                                         </td>
                                         <td style={{ padding: "1rem" }}>

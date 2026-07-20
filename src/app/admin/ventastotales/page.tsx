@@ -1,14 +1,12 @@
 "use client";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useSalesReports } from "@/hooks/useSalesReports";
-import { ChevronLeft, Calendar as CalendarIcon, RefreshCcw, Plus, X, Filter, Download, ArrowUpDown } from "lucide-react";
-import Link from "next/link";
+import { Plus, X, Filter, Download, ArrowUpDown } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 
 // Definimos la estructura del nuevo bloque de filtros
 type FilterCategory = 'fecha' | 'estado' | 'monto' | 'usuario' | 'tipo_pago' | '';
 type DateFilterType = 'day' | 'month' | 'year' | 'range' | 'all';
-type StatusFilterType = 'pending' | 'preparing' | 'served' | 'ready' | 'paid' | 'canceled' | 'all';
 type AmountFilterType = 'mayor' | 'menor' | 'rango' | 'all';
 type UserRoleFilterType = 'any' | 'mesero' | 'cocinero' | 'cajero' | 'cancelado_por';
 
@@ -30,6 +28,20 @@ interface FilterBlock {
     userNameInput: string;
     paymentValues: string[];
 }
+
+type Sale = {
+    id: string;
+    created_at: string;
+    table_number: string;
+    mesero: string;
+    cocinero: string;
+    cajero: string;
+    cancelado_por: string;
+    status: string;
+    is_paid: boolean;
+    total: number;
+    tipo_pago: string;
+};
 
 // Componente Multi-Select nativo (CSS blindado)
 const MultiSelectDropdown = ({
@@ -127,9 +139,9 @@ export default function VentasTotalesPage() {
     }]);
 
     // Estado para ordenamiento, por defecto por fecha ascendente (del más antiguo al más nuevo)
-    const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>({ key: 'created_at', direction: 'desc' });
+    const [sortConfig, setSortConfig] = useState<{ key: keyof Sale, direction: 'asc' | 'desc' } | null>({ key: 'created_at', direction: 'desc' });
 
-    const requestSort = (key: string) => {
+    const requestSort = (key: keyof Sale) => {
         let direction: 'asc' | 'desc' = 'asc';
         if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
             direction = 'desc';
@@ -139,7 +151,7 @@ export default function VentasTotalesPage() {
 
     const ventas = useMemo(() => {
         if (!reportes) return [];
-        return reportes.map(r => ({
+        return reportes.map<Sale>(r => ({
             id: r.pedido_id,
             created_at: r.fecha_hora,
             table_number: r.mesa,
@@ -192,7 +204,7 @@ export default function VentasTotalesPage() {
         }]);
     };
 
-    const updateFilter = (id: string, field: keyof FilterBlock, value: any) => {
+    const updateFilter = <K extends keyof FilterBlock>(id: string, field: K, value: FilterBlock[K]) => {
         setFilters(filters.map(f => f.id === id ? { ...f, [field]: value } : f));
     };
 
@@ -273,14 +285,16 @@ export default function VentasTotalesPage() {
 
     // Lista ordenada (Asegurándonos de que esté debajo de filteredSales para que funcione correctamente)
     const sortedSales = useMemo(() => {
-        let sortableItems = [...filteredSales];
+        const sortableItems = [...filteredSales];
 
         if (sortConfig !== null) {
-            sortableItems.sort((a: any, b: any) => {
-                if (a[sortConfig.key] < b[sortConfig.key]) {
+            sortableItems.sort((a, b) => {
+                const left = a[sortConfig.key];
+                const right = b[sortConfig.key];
+                if (left < right) {
                     return sortConfig.direction === 'asc' ? -1 : 1;
                 }
-                if (a[sortConfig.key] > b[sortConfig.key]) {
+                if (left > right) {
                     return sortConfig.direction === 'asc' ? 1 : -1;
                 }
                 return 0;
@@ -357,7 +371,7 @@ export default function VentasTotalesPage() {
         totalRow.getCell(9).value = parseFloat(totalCalculado.toFixed(2));
 
         totalRow.font = { bold: true };
-        totalRow.eachCell((cell: any) => {
+        totalRow.eachCell((cell) => {
             cell.fill = {
                 type: "pattern",
                 pattern: "solid",
@@ -392,12 +406,12 @@ export default function VentasTotalesPage() {
                         <Filter size={20} /> Panel de Control de Filtros
                     </h3>
 
-                    {filters.map((f, index) => (
+                    {filters.map((f) => (
                         <div key={f.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 2fr 40px", gap: "1rem", alignItems: "center", padding: "0.75rem", background: "rgba(255,255,255,0.02)", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.05)" }}>
 
                             <select
                                 value={f.category}
-                                onChange={(e) => updateFilter(f.id, 'category', e.target.value)}
+                                onChange={(e) => updateFilter(f.id, 'category', e.target.value as FilterCategory)}
                                 className="btn btn-secondary"
                                 style={{ background: "rgba(14, 26, 94, 0.66)", padding: "0.5rem", border: "1px solid var(--border)", fontSize: "0.9rem", color: "white" }}
                             >
@@ -413,7 +427,7 @@ export default function VentasTotalesPage() {
                             {f.category === 'fecha' && (
                                 <select
                                     value={f.dateType}
-                                    onChange={(e) => updateFilter(f.id, 'dateType', e.target.value)}
+                                    onChange={(e) => updateFilter(f.id, 'dateType', e.target.value as DateFilterType)}
                                     className="btn btn-secondary"
                                     style={{ background: "rgba(14, 26, 94, 0.66)", padding: "0.5rem", border: "1px solid var(--border)", fontSize: "0.9rem", color: "white" }}
                                 >
@@ -447,7 +461,7 @@ export default function VentasTotalesPage() {
                             {f.category === 'estado' && (
                                 <select
                                     value={f.statusAction}
-                                    onChange={(e) => updateFilter(f.id, 'statusAction', e.target.value)}
+                                        onChange={(e) => updateFilter(f.id, 'statusAction', e.target.value as FilterBlock["statusAction"])}
                                     className="btn btn-secondary"
                                     style={{ background: "rgba(14, 26, 94, 0.66)", padding: "0.5rem", border: "1px solid var(--border)", fontSize: "0.9rem", color: "white" }}
                                 >
@@ -475,7 +489,7 @@ export default function VentasTotalesPage() {
                             {f.category === 'monto' && (
                                 <select
                                     value={f.amountType}
-                                    onChange={(e) => updateFilter(f.id, 'amountType', e.target.value)}
+                                        onChange={(e) => updateFilter(f.id, 'amountType', e.target.value as AmountFilterType)}
                                     className="btn btn-secondary"
                                     style={{ background: "rgba(14, 26, 94, 0.66)", padding: "0.5rem", border: "1px solid var(--border)", fontSize: "0.9rem", color: "white" }}
                                 >
@@ -501,7 +515,7 @@ export default function VentasTotalesPage() {
                             {f.category === 'usuario' && (
                                 <select
                                     value={f.userRoleType}
-                                    onChange={(e) => updateFilter(f.id, 'userRoleType', e.target.value)}
+                                        onChange={(e) => updateFilter(f.id, 'userRoleType', e.target.value as UserRoleFilterType)}
                                     className="btn btn-secondary"
                                     style={{ background: "rgba(14, 26, 94, 0.66)", padding: "0.5rem", border: "1px solid var(--border)", fontSize: "0.9rem", color: "white" }}
                                 >

@@ -1,9 +1,9 @@
 "use client";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useOrders } from "@/hooks/useOrders";
-import { ChevronLeft, Clock, Package, Filter, Plus, X } from "lucide-react";
-import Link from "next/link";
+import { Clock, Package, Filter, Plus, X } from "lucide-react";
 import { Header } from "@/components/layout/Header";
+import { Auditoria_Pedidos, OrderItem } from "@/types";
 
 // 1. Tipos para los filtros (Solo Fecha y Estado)
 type FilterCategory = 'fecha' | 'estado' | '';
@@ -102,21 +102,27 @@ export default function PedidosTotalesPage() {
         const pagados = (orders || []).filter(o => o.is_paid);
         
         const sourceCancelados = auditorias || [];
-        const cancelados = sourceCancelados.map((aud: any) => {
-            let parsedItems = [];
+        const cancelados = sourceCancelados.map((audit) => {
+            const aud = audit as AuditRecord;
+            let parsedItems: DisplayItem[] = [];
             if (typeof aud.detalle === 'string') {
-                try { parsedItems = JSON.parse(aud.detalle); } catch(e) {}
+                try {
+                    const parsed: unknown = JSON.parse(aud.detalle);
+                    if (Array.isArray(parsed)) parsedItems = parsed as DisplayItem[];
+                } catch {
+                    parsedItems = [];
+                }
             } else {
                 parsedItems = aud.detalle || aud.items || aud.productos || [];
             }
 
             return {
-                id: `cancel-${aud.id || Math.random().toString()}`, 
-                table_number: aud.mesa || aud.table_number,
+                id: `cancel-${aud.id}`,
+                table_number: aud.mesa || aud.table_number || "Sin mesa",
                 is_paid: false,
                 status: 'canceled', 
                 items: parsedItems, 
-                created_at: aud.fecha_hora || aud.created_at,
+                created_at: aud.fecha_hora || aud.created_at || "1970-01-01T00:00:00.000Z",
                 cancelado_por: aud.cancelado_por,
                 pedido_original: aud.pedido_original // Aquí capturamos la data
             };
@@ -127,7 +133,7 @@ export default function PedidosTotalesPage() {
     
     // 3. Estado de Filtros Dinámicos
     const [filters, setFilters] = useState<FilterBlock[]>([{
-        id: Date.now().toString(),
+        id: "initial",
         category: '',
         dateType: 'all',
         selectedDate: '',
@@ -147,7 +153,7 @@ export default function PedidosTotalesPage() {
 
     const addFilter = () => {
         setFilters([...filters, {
-            id: Date.now().toString(),
+            id: crypto.randomUUID(),
             category: '',
             dateType: 'all',
             selectedDate: '',
@@ -160,7 +166,7 @@ export default function PedidosTotalesPage() {
         }]);
     };
 
-    const updateFilter = (id: string, field: keyof FilterBlock, value: any) => {
+    const updateFilter = <K extends keyof FilterBlock>(id: string, field: K, value: FilterBlock[K]) => {
         setFilters(filters.map(f => f.id === id ? { ...f, [field]: value } : f));
     };
 
@@ -222,7 +228,7 @@ export default function PedidosTotalesPage() {
                             
                             <select 
                                 value={f.category} 
-                                onChange={(e) => updateFilter(f.id, 'category', e.target.value)}
+                                onChange={(e) => updateFilter(f.id, 'category', e.target.value as FilterCategory)}
                                 className="btn btn-secondary"
                                 style={{ background: "rgba(14, 26, 94, 0.66)", padding: "0.5rem", border: "1px solid var(--border)", fontSize: "0.9rem", color: "white" }}
                             >
@@ -235,7 +241,7 @@ export default function PedidosTotalesPage() {
                             {f.category === 'fecha' && (
                                 <select 
                                     value={f.dateType} 
-                                    onChange={(e) => updateFilter(f.id, 'dateType', e.target.value)}
+                                    onChange={(e) => updateFilter(f.id, 'dateType', e.target.value as DateFilterType)}
                                     className="btn btn-secondary"
                                     style={{ background: "rgba(14, 26, 94, 0.66)", padding: "0.5rem", border: "1px solid var(--border)", fontSize: "0.9rem", color: "white" }}
                                 >
@@ -269,7 +275,7 @@ export default function PedidosTotalesPage() {
                             {f.category === 'estado' && (
                                 <select 
                                     value={f.statusAction} 
-                                    onChange={(e) => updateFilter(f.id, 'statusAction', e.target.value)}
+                                        onChange={(e) => updateFilter(f.id, 'statusAction', e.target.value as FilterBlock["statusAction"])}
                                     className="btn btn-secondary"
                                     style={{ background: "rgba(14, 26, 94, 0.66)", padding: "0.5rem", border: "1px solid var(--border)", fontSize: "0.9rem", color: "white" }}
                                 >
@@ -379,7 +385,7 @@ export default function PedidosTotalesPage() {
                                     )
                                 ) : (
                                     // 🟢 Diseño para Pagados / Normales
-                                    order.items?.map((item: any, idx: number) => (
+                                    order.items?.map((item: DisplayItem, idx: number) => (
                                         <div key={idx} style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.3rem", color: "var(--text-muted)" }}>
                                             <Package size={14} />
                                             <span>{item.quantity}x {item.product?.name || item.nombre_producto || item.name}</span>
@@ -403,3 +409,18 @@ export default function PedidosTotalesPage() {
         </div>
     );
 }
+
+type AuditRecord = Auditoria_Pedidos & {
+    detalle?: string | OrderItem[];
+    items?: OrderItem[];
+    productos?: OrderItem[];
+    table_number?: string;
+    created_at?: string;
+    cancelado_por?: string;
+};
+
+type DisplayItem = Partial<OrderItem> & {
+    product?: { name?: string };
+    nombre_producto?: string;
+    name?: string;
+};

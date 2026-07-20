@@ -1,65 +1,52 @@
-# 🍽️ Restaurant CRM (DeliciasMoran)
+# Delicias Morán
 
-Sistema de gestión integral para restaurantes basado en **Clean Architecture**. Diseñado para ser altamente modular, escalable y con sincronización en tiempo real.
+Sistema interno para coordinar pedidos, cocina, caja, inventario y reportes del restaurante Delicias Morán.
 
-## 📋 Características Principales
+## Módulos
 
-### 👥 Roles y Permisos Especializados
-- **Admin**: Gestión global, inventarios, reportes avanzados de ventas y auditoría de pedidos.
-- **Mesero**: Toma de comandas optimizada con gestión de stock en tiempo real y edición de pedidos.
-- **Cocinero**: Panel de control de comandas con estados dinámicos (Pendiente, Preparando, Listo).
-- **Cajero**: Módulo de cobros rápido con soporte para múltiples métodos de pago (Efectivo, Transferencia).
+- **Administrador:** productos, inventario, pedidos, auditoría y ventas.
+- **Mesero:** creación y modificación de comandas.
+- **Cocina:** preparación y entrega de pedidos.
+- **Cajero:** cobro y registro del método de pago.
 
-### 🎯 Innovaciones Técnicas
-- ✅ **Modularity**: Arquitectura desacoplada basada en Hooks independientes por dominio.
-- ✅ **Real-time Engine**: Sincronización bidireccional mediante Supabase Postgres Changes.
-- ✅ **Optimistic UI**: Actualizaciones instantáneas en la interfaz para una experiencia fluida.
-- ✅ **N8n Integration**: Asistente virtual inteligente integrado para soporte y análisis de datos.
+Cada módulo está protegido por rol en el nivel de ruta. Supabase Row Level Security es la barrera definitiva para el acceso a datos.
 
-## 🛠️ Stack Tecnológico
-- **Frontend**: Next.js 16 (App Router), TypeScript, Tailwind CSS / Vanilla CSS.
-- **Backend**: Supabase (PostgreSQL, Auth, Realtime, RLS).
-- **Integraciones**: n8n (Chatbot con IA), ExcelJS (Reportes analíticos).
+## Tecnología
 
-## 📂 Estructura del Proyecto (Clean Architecture)
-```
-restaurant-crm/
-├── src/
-│   ├── app/            # Rutas y páginas (App Router)
-│   ├── components/
-│   │   ├── layout/     # Componentes core (Header, Providers)
-│   │   ├── ui/         # Componentes atómicos (Modal, Toast)
-│   │   └── integrations/# Widgets de terceros (n8n Chat)
-│   ├── hooks/          # Lógica de dominio encapsulada (useOrders, useMenu, useSales)
-│   ├── lib/            # Clientes y utilidades (Supabase Client)
-│   ├── types/          # Definiciones de TypeScript centralizadas
-│   └── context/        # Proveedores de estado global (Auth, Toast)
-├── android-app/        # Backend-compatible native app (Kotlin)
-├── supabase-schema.sql # Estructura y lógica de base de datos
-└── README.md
-```
+- Next.js 16, React 19 y TypeScript.
+- Supabase Auth, PostgreSQL, Storage y Realtime.
+- ExcelJS para exportar reportes.
+- Aplicación Android nativa en Kotlin.
 
-## 🚀 Instalación y Desarrollo
+La web está organizada por rutas, componentes, contextos y hooks de dominio. No se presenta como una implementación estricta de Clean Architecture: la prioridad es mantener límites claros entre interfaz, autorización, sincronización y acceso a datos.
 
-### 1. Configuración de Entorno
-Crea un archivo `.env.local`:
-```env
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
-```
+## Desarrollo
 
-### 2. Ejecución
+1. Copia `env.example.txt` a `.env.local`.
+2. Configura `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+3. Instala y valida:
+
 ```bash
 npm install
 npm run dev
+npm run typecheck
+npm run lint
+npm run build
 ```
 
-## 🐳 Despliegue con Docker
+## Supabase
+
+El esquema de producción vive en Supabase y no se duplica como un esquema local potencialmente obsoleto. Las tablas, políticas, funciones RPC, Storage y configuración Realtime requeridas están documentadas en [docs/SUPABASE.md](docs/SUPABASE.md).
+
+Las operaciones compuestas de pedidos se ejecutan mediante una única función RPC por acción. De esa forma, PostgreSQL confirma todos los cambios o revierte la operación completa.
+
+## Android
+
+`android-app/` contiene la aplicación Android nativa en Kotlin. El proyecto web no depende de Capacitor.
+
+## Despliegue web
+
 ```bash
-docker build -t restaurant-crm .
-docker run -d -p 80:80 --name restaurant-crm-app restaurant-crm
+docker build -t delicias-moran .
+docker run -d -p 80:80 --name delicias-moran delicias-moran
 ```
-
----
-Optimizado para entornos de alta demanda operativa. Basado en principios SOLID y diseño orientado a transacciones rápidas.
-
