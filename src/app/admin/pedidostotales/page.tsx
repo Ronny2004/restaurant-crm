@@ -95,7 +95,7 @@ const MultiSelectDropdown = ({
 };
 
 export default function PedidosTotalesPage() {
-    const { auditorias, orders } = useOrders();
+    const { auditorias, orders } = useOrders({ includeAudits: true });
 
     // FILTRO MAESTRO
     const historyOrders = useMemo(() => {

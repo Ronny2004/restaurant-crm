@@ -18,12 +18,13 @@ export type OrderItem = {
 export type Order = {
     id: string;
     table_number: string;
-    status: "pending" | "preparing" | "served" | "ready";
+    status: "pending" | "preparing" | "served" | "ready" | "paid" | "editing";
     status_id: number;
     status_description?: string;
     is_paid: boolean;
     total: number;
     created_at: string;
+    updated_at: string;
     items: OrderItem[];
 };
 
@@ -44,7 +45,7 @@ export type Auditoria_Pedidos = {
     usuario: string;
     mesa: string;
     pedido_id: string;
-    estado_pedido: "Editado" | "Cancelado/Eliminado"; 
+    estado_pedido: "Editado" | "Cancelado / Eliminado";
     pedido_original: string;
     pedido_actualizado: string;
     itemsAudit?: AuditItem[]; 

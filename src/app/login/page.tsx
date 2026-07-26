@@ -1,153 +1,196 @@
 "use client";
 
 import { useState } from "react";
-import { useAuth } from "@/context/AuthContext";
-import { useRouter } from "next/navigation";
-import { LogIn, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { ChevronDown, Loader2, LockKeyhole, Mail, Shield } from "lucide-react";
+import { AuthMessage } from "@/components/auth/AuthMessage";
+import { LoginShell } from "@/components/auth/LoginShell";
+import { NumericKeypad } from "@/components/auth/NumericKeypad";
+import { PinInput } from "@/components/auth/PinInput";
+import type { AuthApiResponse } from "@/types/auth";
+
+type MoreOption = "password" | "emergency" | null;
 
 export default function LoginPage() {
-    const [user, setUser] = useState("");
+    const [pin, setPin] = useState("");
+    const [option, setOption] = useState<MoreOption>(null);
+    const [identifier, setIdentifier] = useState("");
     const [password, setPassword] = useState("");
-    const [error, setError] = useState("");
+    const [emergencyCode, setEmergencyCode] = useState("");
+    const [message, setMessage] = useState("");
     const [loading, setLoading] = useState(false);
-    const { signIn } = useAuth();
-    const router = useRouter();
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setError("");
+    const finish = (data: AuthApiResponse) => {
+        if (!data.ok) {
+            setMessage(data.message || "No se pudo iniciar sesión");
+            return;
+        }
+        window.location.assign(data.next || "/");
+    };
+
+    const submitPin = async (event: React.FormEvent) => {
+        event.preventDefault();
+        if (pin.length !== 6) {
+            setMessage("Completa los 6 dígitos del PIN");
+            return;
+        }
         setLoading(true);
-
-        const { error } = await signIn(user, password);
-
-        if (error) {
-            setError("Credenciales inválidas. Por favor, intenta de nuevo.");
+        setMessage("");
+        try {
+            const response = await fetch("/api/auth/pin/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ pin }),
+            });
+            finish(await response.json() as AuthApiResponse);
+        } catch {
+            setMessage("No fue posible conectar con el servidor");
+        } finally {
             setLoading(false);
-        } else {
-            // Redirect will be handled by the home page based on role
-            router.push("/");
+        }
+    };
+
+    const submitPassword = async (event: React.FormEvent) => {
+        event.preventDefault();
+        setLoading(true);
+        setMessage("");
+        try {
+            const response = await fetch("/api/auth/password/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ identifier, password }),
+            });
+            finish(await response.json() as AuthApiResponse);
+        } catch {
+            setMessage("No fue posible conectar con el servidor");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const submitEmergency = async (event: React.FormEvent) => {
+        event.preventDefault();
+        setLoading(true);
+        setMessage("");
+        try {
+            const response = await fetch("/api/auth/emergency/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ code: emergencyCode }),
+            });
+            finish(await response.json() as AuthApiResponse);
+        } catch {
+            setMessage("No fue posible conectar con el servidor");
+        } finally {
+            setLoading(false);
         }
     };
 
     return (
-        <div className="container" style={{
-            minHeight: "100vh",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center"
-        }}>
-            <div className="glass-panel" style={{
-                maxWidth: "450px",
-                width: "100%",
-                padding: "3rem"
-            }}>
-                <div style={{ textAlign: "center", marginBottom: "2rem" }}>
-                    <div style={{
-                        display: "inline-flex",
-                        padding: "1rem",
-                        background: "rgba(245, 158, 11, 0.2)",
-                        borderRadius: "50%",
-                        marginBottom: "1rem"
-                    }}>
-                        <LogIn size={40} style={{ color: "var(--primary)" }} />
-                    </div>
-                    <h1 style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>
-                        Restaurante <span style={{ color: "var(--primary)" }}>CRM</span>
-                    </h1>
-                    <p style={{ color: "var(--text-muted)" }}>
-                        Ingresa tus credenciales para continuar
-                    </p>
-                </div>
+        <LoginShell
+            title="Acceso del personal"
+            description="Ingresa tu PIN de seis dígitos para continuar."
+        >
+            <form className="auth-form" onSubmit={submitPin}>
+                <PinInput
+                    value={pin}
+                    onChange={setPin}
+                    autoFocus
+                    label="PIN de acceso"
+                />
+                <NumericKeypad value={pin} onChange={setPin} disabled={loading} />
+                <AuthMessage message={message} />
+                <button
+                    className="btn btn-primary auth-submit"
+                    disabled={loading || pin.length !== 6}
+                >
+                    {loading ? <Loader2 className="animate-spin" size={20} /> : <LockKeyhole size={20} />}
+                    Ingresar
+                </button>
+            </form>
 
-                <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-                    <div>
-                        <input
-                            id="user"
-                            type="text"
-                            value={user}
-                            onChange={(e) => setUser(e.target.value)}
-                            required
-                            autoComplete="username"
-                            placeholder="Correo electrónico o nombre de usuario"
-                            style={{
-                                width: "100%",
-                                padding: "0.875rem",
-                                borderRadius: "8px",
-                                border: "1px solid var(--border)",
-                                background: "rgba(0,0,0,0.3)",
-                                color: "white",
-                                fontSize: "1rem",
-                                transition: "border-color 0.2s"
-                            }}
-                            onFocus={(e) => e.target.style.borderColor = "var(--primary)"}
-                            onBlur={(e) => e.target.style.borderColor = "var(--border)"}
-                        />
-                    </div>
-
-                    <div>
-                        <input
-                            id="password"
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            required
-                            autoComplete="current-password"
-                            placeholder="Contraseña"
-                            style={{
-                                width: "100%",
-                                padding: "0.875rem",
-                                borderRadius: "8px",
-                                border: "1px solid var(--border)",
-                                background: "rgba(0,0,0,0.3)",
-                                color: "white",
-                                fontSize: "1rem",
-                                transition: "border-color 0.2s"
-                            }}
-                            onFocus={(e) => e.target.style.borderColor = "var(--primary)"}
-                            onBlur={(e) => e.target.style.borderColor = "var(--border)"}
-                        />
-                    </div>
-
-                    {error && (
-                        <div style={{
-                            padding: "0.875rem",
-                            borderRadius: "8px",
-                            background: "rgba(239, 68, 68, 0.2)",
-                            border: "1px solid rgba(239, 68, 68, 0.4)",
-                            color: "#fca5a5",
-                            fontSize: "0.9rem"
-                        }}>
-                            {error}
-                        </div>
-                    )}
-
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="btn btn-primary"
-                        style={{
-                            width: "100%",
-                            padding: "1rem",
-                            fontSize: "1rem",
-                            opacity: loading ? 0.7 : 1,
-                            cursor: loading ? "not-allowed" : "pointer"
-                        }}
-                    >
-                        {loading ? (
-                            <>
-                                <Loader2 size={20} style={{ animation: "spin 1s linear infinite" }} />
-                                Iniciando sesión...
-                            </>
-                        ) : (
-                            <>
-                                <LogIn size={20} />
-                                Iniciar Sesión
-                            </>
-                        )}
-                    </button>
-                </form>
-
+            <div className="auth-secondary-actions">
+                <button
+                    type="button"
+                    className="auth-option-toggle"
+                    onClick={() => setOption(option ? null : "password")}
+                >
+                    Más opciones <ChevronDown size={17} />
+                </button>
+                <Link className="auth-link" href="/recuperar-pin">
+                    ¿Olvidaste tu PIN?
+                </Link>
             </div>
-        </div>
+
+            {option && (
+                <div className="auth-option-panel">
+                    <div className="auth-option-tabs">
+                        <button
+                            className={option === "password" ? "active" : ""}
+                            onClick={() => setOption("password")}
+                            type="button"
+                        >
+                            <Mail size={16} /> Contraseña
+                        </button>
+                        <button
+                            className={option === "emergency" ? "active" : ""}
+                            onClick={() => setOption("emergency")}
+                            type="button"
+                        >
+                            <Shield size={16} /> Código manual
+                        </button>
+                    </div>
+
+                    {option === "password" ? (
+                        <form className="auth-form compact" onSubmit={submitPassword}>
+                            <label>
+                                Usuario o correo
+                                <input
+                                    required
+                                    autoComplete="username"
+                                    value={identifier}
+                                    onChange={(event) => setIdentifier(event.target.value)}
+                                />
+                            </label>
+                            <label>
+                                Contraseña
+                                <input
+                                    required
+                                    type="password"
+                                    autoComplete="current-password"
+                                    value={password}
+                                    onChange={(event) => setPassword(event.target.value)}
+                                />
+                            </label>
+                            <button className="btn btn-secondary" disabled={loading}>
+                                Iniciar con contraseña
+                            </button>
+                        </form>
+                    ) : (
+                        <form className="auth-form compact" onSubmit={submitEmergency}>
+                            <p className="auth-help">
+                                Solicita al administrador un código temporal de emergencia.
+                            </p>
+                            <PinInput
+                                value={emergencyCode}
+                                onChange={setEmergencyCode}
+                                label="Código de emergencia"
+                            />
+                            <button
+                                className="btn btn-secondary"
+                                disabled={loading || emergencyCode.length !== 6}
+                            >
+                                Usar código
+                            </button>
+                        </form>
+                    )}
+                </div>
+            )}
+
+            <div className="admin-login-link">
+                <span>¿Eres administrador?</span>
+                <Link href="/admin/login">Acceso seguro de administrador</Link>
+            </div>
+        </LoginShell>
     );
 }

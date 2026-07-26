@@ -1,26 +1,19 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
-import { AuthError, User, Session } from "@supabase/supabase-js";
+import type { Session, User } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
+import type { AppProfile, UserRole } from "@/types/auth";
 
-export type UserRole = "admin" | "waiter" | "chef" | "cashier";
-
-export type UserProfile = {
-    id: string;
-    email: string;
-    role: UserRole;
-    full_name?: string;
-    username?: string;
-};
+export type { UserRole } from "@/types/auth";
+export type UserProfile = AppProfile;
 
 type AuthContextType = {
     user: User | null;
     profile: UserProfile | null;
     session: Session | null;
     loading: boolean;
-    signIn: (user: string, password: string) => Promise<{ error: AuthError | Error | null }>;
     signOut: () => Promise<void>;
     hasRole: (roles: UserRole[]) => boolean;
 };
@@ -34,35 +27,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [loading, setLoading] = useState(true);
     const router = useRouter();
 
-    useEffect(() => {
-        // Get initial session
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
-            setUser(session?.user ?? null);
-            if (session?.user) {
-                fetchProfile(session.user.id);
-            } else {
-                setLoading(false);
-            }
-        });
-
-        // Escuchar cambios de estado de autenticación
-        const {
-            data: { subscription },
-        } = supabase.auth.onAuthStateChange((_event, session) => {
-            setSession(session);
-            setUser(session?.user ?? null);
-            if (session?.user) {
-                fetchProfile(session.user.id);
-            } else {
-                setProfile(null);
-                setLoading(false);
-            }
-        });
-
-        return () => subscription.unsubscribe();
-    }, []);
-
     const fetchProfile = async (userId: string) => {
         try {
             const { data, error } = await supabase
@@ -71,84 +35,72 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 .eq("id", userId)
                 .single();
 
-            if (error) {
-                console.error("Error al obtener la vista del perfil:", error);
-                setProfile(null);
-            } else {
-                setProfile(data as UserProfile);
-            }
+            setProfile(error ? null : data as UserProfile);
         } catch (error) {
-            console.error("Error inesperado:", error);
+            console.error("Error al consultar el perfil", error);
             setProfile(null);
         } finally {
             setLoading(false);
         }
     };
 
-    const signIn = async (user: string, password: string) => {
-        let loginEmail = user;
-
-        // Si el identificador NO tiene un '@', asumimos que es un username
-        if (!user.includes("@")) {
-            // Llamamos a la función segura (RPC) que creamos en la base de datos
-            const { data: emailAsociado, error: searchError } = await supabase
-                .rpc('get_email_by_username', { p_username: user });
-
-            if (searchError || !emailAsociado) {
-                return { error: new Error("Credenciales inválidas") };
+    useEffect(() => {
+        supabase.auth.getSession().then(({ data }) => {
+            setSession(data.session);
+            setUser(data.session?.user ?? null);
+            if (data.session?.user) {
+                void fetchProfile(data.session.user.id);
+            } else {
+                setLoading(false);
             }
-
-            loginEmail = emailAsociado;
-        }
-
-        // 1. Autenticación real con supabase
-        const { data, error } = await supabase.auth.signInWithPassword({
-            email: loginEmail,
-            password,
         });
 
-        if (!error && data.user) {
-            await fetchProfile(data.user.id);
-            return { error: null };
-        }
-        
-        return { error };
-    };
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+            (_event, nextSession) => {
+                setSession(nextSession);
+                setUser(nextSession?.user ?? null);
+                if (nextSession?.user) {
+                    void fetchProfile(nextSession.user.id);
+                } else {
+                    setProfile(null);
+                    setLoading(false);
+                }
+            },
+        );
+
+        return () => subscription.unsubscribe();
+    }, []);
 
     const signOut = async () => {
-        await supabase.auth.signOut();
+        await fetch("/api/auth/logout", { method: "POST" });
+        await supabase.auth.signOut({ scope: "local" });
         setUser(null);
         setProfile(null);
         setSession(null);
-        router.push("/login");
+        router.replace("/login");
+        router.refresh();
     };
 
-    const hasRole = (roles: UserRole[]): boolean => {
-        if (!profile) return false;
-        return roles.includes(profile.role);
-    };
+    const hasRole = (roles: UserRole[]) =>
+        Boolean(
+            profile
+            && profile.account_status === "active"
+            && roles.includes(profile.role),
+        );
 
     return (
         <AuthContext.Provider
-            value={{
-                user,
-                profile,
-                session,
-                loading,
-                signIn,
-                signOut,
-                hasRole,
-            }}
+            value={{ user, profile, session, loading, signOut, hasRole }}
         >
             {children}
         </AuthContext.Provider>
     );
 }
 
-export const useAuth = () => {
+export function useAuth() {
     const context = useContext(AuthContext);
-    if (context === undefined) {
-        throw new Error("useAuth debe usarse siempre dentro de AuthProvider");
+    if (!context) {
+        throw new Error("useAuth debe usarse dentro de AuthProvider");
     }
     return context;
-};
+}

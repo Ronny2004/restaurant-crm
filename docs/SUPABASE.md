@@ -1,136 +1,209 @@
 # Contrato de Supabase
 
-Supabase es la fuente de verdad del sistema. Este documento describe el contrato que consume la web; no intenta duplicar el esquema completo de producción.
+Supabase es la fuente de verdad del sistema. El esquema versionado está en
+`supabase/migrations/` y debe aplicarse primero en local, después en producción
+y antes de desplegar una versión de Next.js que dependa de una migración nueva.
 
-## Variables públicas
+## Variables
+
+El navegador utiliza exclusivamente:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
-La clave `service_role` nunca debe incluirse en la web ni en archivos versionados.
+La clave `service_role` nunca debe usar el prefijo `NEXT_PUBLIC_`, enviarse al
+navegador ni almacenarse en Git. Cuando se implemente la administración de
+usuarios se utilizará únicamente desde una ruta de servidor de Next.js.
 
 ## Auth y perfiles
 
-Supabase Auth administra las sesiones. `profiles.id` corresponde a `auth.users.id`.
+Supabase Auth administra identidades y sesiones. `profiles.id` corresponde a
+`auth.users.id` y se elimina en cascada con la identidad.
 
-Campos consumidos de `profiles`:
+El trigger `on_auth_user_created` crea el perfil automáticamente:
 
-- `id`, `email`, `username`, `full_name`
-- `role`: `admin`, `waiter`, `chef` o `cashier`
+- rol predeterminado `waiter`;
+- username normalizado desde metadatos o correo;
+- `search_path` vacío y ejecución restringida.
 
-La función `get_email_by_username(p_username text)` permite iniciar sesión con nombre de usuario. Solo debe devolver el correo exacto necesario para autenticar y debe tener una política de ejecución limitada.
+El registro público está deshabilitado. Las identidades nuevas deben crearse
+mediante Auth Admin después de validar en servidor que el solicitante sea
+administrador.
 
-## Tablas y vistas consumidas
+Solo administradores pueden modificar perfiles. Cada creación, actualización
+o eliminación se registra de forma inmutable en `user_management_audit`.
 
-- `profiles`
-- `products`
-- `orders`
-- `order_items`
-- `status_order`
-- `payment_type`
-- `reporte_ventas`
-- `auditoria_pedidos`
-- `historial_auditoria_pedidos`
+`get_email_by_username(p_username text)` existe únicamente para conservar el
+inicio de sesión por username. Es la única RPC de negocio ejecutable por
+`anon`.
 
-Relaciones utilizadas:
+## Catálogos
 
-- `orders.status_id -> status_order.id`
-- `orders.payment_type_id -> payment_type.id`
-- `order_items.order_id -> orders.id`
-- `order_items.product_id -> products.id`
+Los estados y métodos de pago se insertan mediante migraciones idempotentes:
 
-El bucket público `product-images` almacena imágenes del menú. Solo administradores pueden crear o eliminar objetos.
+- `pending`
+- `preparing`
+- `served`
+- `ready`
+- `paid`
+- `editing`
+- `efectivo`
+- `transferencia`
 
-## Funciones transaccionales
+Las funciones resuelven estados por su nombre; la web no depende de IDs
+numéricos quemados.
 
-Cada función siguiente debe implementarse en PostgreSQL con `SECURITY DEFINER`, `SET search_path = public`, validación explícita del rol y permisos de ejecución únicamente para `authenticated`. Ante cualquier error debe lanzar una excepción; PostgreSQL revertirá toda la función.
+## Escrituras de pedidos
 
-Mientras estas funciones se instalan, la web detecta específicamente el error de “función inexistente” y utiliza las operaciones compatibles con la base actual. Cualquier otro error de Supabase se propaga y no activa el modo de compatibilidad.
+El navegador tiene lectura sobre `orders` y `order_items`, pero no puede
+insertar, actualizar ni eliminar filas directamente. Cada acción utiliza una
+RPC `SECURITY DEFINER`, con `SET search_path = ''`, autorización explícita y
+rollback automático.
 
-### `create_order_transaction`
+### `create_order_transaction(p_table_number text, p_items jsonb)`
 
-Parámetros:
+- Roles: `waiter`, `admin`.
+- Obtiene precios y nombres desde `products`.
+- Bloquea productos en orden estable.
+- Valida cantidades, duplicados y stock.
+- Calcula el total.
+- Crea pedido, artículos y reporte en una transacción.
 
-- `p_table_number text`
-- `p_items jsonb`: elementos con `product_id`, `quantity` y `price`
+El cliente solo envía `product_id` y `quantity`.
 
-Devuelve el UUID del pedido. En una sola transacción debe validar al mesero, bloquear los productos, comprobar stock y precios, crear `orders` y `order_items`, descontar stock y crear `reporte_ventas`.
+### `update_order_transaction(p_order_id uuid, p_items jsonb, p_expected_updated_at timestamptz)`
 
-### `update_order_transaction`
+- Roles: mesero propietario o administrador.
+- Solo permite pedidos `pending` y no pagados.
+- Detecta ediciones concurrentes mediante `updated_at`.
+- Bloquea pedido y productos.
+- Recalcula stock, precios y total.
+- Actualiza reporte, resumen de auditoría e historial en la misma transacción.
 
-Parámetros:
+### `cancel_order_transaction(p_order_id uuid)`
 
-- `p_order_id uuid`
-- `p_items jsonb`
+- El mesero solo puede cancelar pedidos propios en `pending`.
+- El administrador puede cancelar cualquier pedido no pagado.
+- Conserva el reporte como `canceled`.
+- Guarda resumen e historial de auditoría.
+- Elimina el pedido y restaura stock dentro de la misma transacción.
 
-Debe validar al propietario o administrador, rechazar pedidos pagados, bloquear pedido y productos, restaurar/descontar diferencias de stock, reemplazar los artículos, recalcular el total en servidor, actualizar `reporte_ventas` y escribir tanto la auditoría actual como su historial.
+### `update_order_status_transaction(p_order_id uuid, p_status text)`
 
-### `cancel_order_transaction`
+Transiciones ordinarias:
 
-Parámetro `p_order_id uuid`.
+| Rol | Transición |
+| --- | --- |
+| Cocina | `pending → preparing → served` |
+| Mesero | `served → ready` |
+| Administración | Estados operativos no pagados |
 
-Debe validar al propietario o administrador, rechazar pedidos pagados, restaurar stock, registrar usuario y estado cancelado en reportes/auditoría y eliminar o marcar el pedido según la política de retención vigente.
+El estado `paid` solo se alcanza mediante la RPC de cobro.
 
-### `update_order_status_transaction`
+### `pay_order_transaction(p_order_id uuid, p_payment_type_id integer)`
 
-Parámetros `p_order_id uuid` y `p_status text`.
+- Roles: `cashier`, `admin`.
+- Exige estado `ready`.
+- Valida el método de pago.
+- Cambia estado a `paid`, marca `is_paid` y actualiza el reporte.
 
-Debe resolver el identificador desde `status_order`; la web no contiene identificadores numéricos quemados. También valida las transiciones permitidas y actualiza al responsable correspondiente en `reporte_ventas`.
+### `delete_product_transaction(p_product_id uuid)`
 
-### `pay_order_transaction`
-
-Parámetros `p_order_id uuid` y `p_payment_type_id integer`.
-
-Debe permitir únicamente caja o administración, comprobar que el pedido esté listo y no pagado, validar el método, marcar el pago y actualizar cajero y tipo de pago en `reporte_ventas`.
-
-### `delete_product_transaction`
-
-Parámetro `p_product_id uuid`.
-
-Debe permitir únicamente administración y rechazar productos con historial en `order_items` antes de eliminar.
+- Rol: `admin`.
+- Rechaza productos utilizados en cualquier `order_items`.
 
 ## Row Level Security
 
-RLS debe estar habilitado en todas las tablas expuestas. Matriz mínima:
+RLS está habilitado en todas las tablas expuestas.
 
 | Recurso | Lectura | Escritura |
 | --- | --- | --- |
-| `profiles` | perfil propio; administración según necesidad | perfil propio limitado o administración |
+| `profiles` | personal autenticado | administración |
 | `products` | personal autenticado | administración |
-| `orders`, `order_items` | personal autenticado | exclusivamente mediante RPC autorizadas |
-| estados y métodos de pago | personal autenticado | administración |
-| reportes y auditoría | administración; personal solo cuando sea imprescindible | exclusivamente mediante RPC |
+| `orders`, `order_items` | personal autenticado | RPC autorizadas |
+| `status_order`, `payment_type` | personal autenticado | migraciones/servicio |
+| reportes y auditoría de pedidos | administración | RPC/triggers |
+| `user_management_audit` | administración | trigger |
+| `registro_sesiones` | propietario | propietario |
+| `password_resets` | servicio | servicio |
 
-Los controles visuales de Next.js mejoran la navegación, pero no sustituyen RLS ni las validaciones dentro de las funciones.
+Los roles `anon` y `authenticated` no tienen `TRUNCATE`, `TRIGGER`,
+`REFERENCES` ni permisos amplios sobre los objetos actuales. Los privilegios
+predeterminados del rol de migraciones `postgres` también están revocados. Cada
+migración futura debe continuar declarando sus `REVOKE` y `GRANT`
+explícitamente, especialmente si el objeto se crea desde Dashboard con otro
+propietario.
+
+## Inventario y auditoría
+
+`tr_update_stock` mantiene stock al insertar, eliminar o cambiar artículos,
+incluido un cambio de `product_id`. Las RPC bloquean previamente los productos
+para evitar carreras y los checks impiden stock negativo.
+
+`auditoria_pedidos` conserva una fila resumen por pedido.
+`historial_auditoria_pedidos` es append-only y conserva cada edición o
+cancelación. Los clientes no escriben ninguna de las dos tablas.
+
+`reporte_ventas` conserva incluso los pedidos cancelados, pero solo las RPC
+pueden modificarlo.
 
 ## Realtime
 
-En la publicación `supabase_realtime` deben estar:
+La publicación contiene:
 
 - `products`
 - `orders`
-- `order_items`
 - `auditoria_pedidos`
 - `reporte_ventas`
 
-En la configuración inspeccionada el 19 de julio de 2026 faltaban
-`order_items` y `auditoria_pedidos`. Se agregan una sola vez desde el SQL
-Editor:
+`order_items` no se publica. Toda RPC que modifica artículos toca `orders` al
+final; ese único evento hace que la web consulte el pedido completo después
+del commit. Esto evita ráfagas de eventos parciales.
 
-```sql
-alter publication supabase_realtime add table public.order_items;
-alter publication supabase_realtime add table public.auditoria_pedidos;
-```
+Los módulos operativos solo se suscriben a pedidos. La suscripción y consulta
+de auditoría se activa exclusivamente en la página administrativa que la usa.
 
-La web mantiene un canal por dominio. Los eventos de `orders` y `order_items` se agrupan durante una ventana corta y solo vuelven a consultar el pedido afectado. Los productos y registros simples se aplican directamente desde el payload.
+## Fechas
 
-Para procesar eliminaciones, las tablas correspondientes deben usar una identidad de réplica que incluya la llave primaria.
+Las columnas `timestamptz` usan `now()` y `updated_at` usa
+`clock_timestamp()`. PostgreSQL conserva instantes UTC; la conversión a
+`America/Guayaquil` se hace únicamente en presentación.
 
-## Lista de verificación en Supabase
+## Pruebas
 
-1. Verificar tablas, relaciones, índices y restricciones.
-2. Instalar o actualizar las seis funciones transaccionales.
-3. Revocar escrituras directas que ahora pasan por RPC.
-4. Revisar RLS con una cuenta de cada rol.
-5. Activar las cinco tablas en Realtime.
-6. Probar rollback provocando un error intermedio dentro de cada función.
+`supabase/tests/operational_security.sql` ejecuta dentro de
+`BEGIN/ROLLBACK`:
+
+- matriz de permisos;
+- creación con precio manipulado;
+- stock insuficiente;
+- edición y concurrencia optimista;
+- transiciones por rol;
+- pago;
+- cancelación y restauración de stock;
+- auditoría e historial;
+- eliminación protegida de productos.
+
+No deja datos de prueba.
+
+## Producción
+
+1. Respaldar esquema y datos.
+2. Verificar el historial remoto de migraciones. La migración
+   `20260725175500_esquema_inicial.sql` es la fotografía de la base que ya
+   existe y no debe ejecutarse nuevamente sobre producción; si no figura en el
+   historial, se marca como aplicada antes del push.
+3. Aplicar, en orden, las migraciones posteriores a la fotografía inicial.
+4. Confirmar que el registro público de Auth esté deshabilitado.
+5. Ejecutar la regresión con cuentas/datos de prueba aislados.
+6. Desplegar Next.js después de las migraciones.
+7. Verificar Realtime y una operación real por rol.
+
+Nunca debe aplicarse primero el frontend si las RPC nuevas todavía no existen.
+
+## Campañas
+
+La migración `20260726003000_campaigns_module.sql` crea `campaigns` y
+`campaign_responses`, junto con sus índices, restricciones y políticas RLS.
+El flujo funcional y las reglas de privacidad están documentados en
+`docs/CAMPAIGNS.md`.

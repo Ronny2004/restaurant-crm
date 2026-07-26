@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth } from "@/context/AuthContext";
 import { PaymentType } from "@/types";
 import { supabase } from "@/lib/supabaseClient";
 import { useOrders } from "@/hooks/useOrders";
@@ -11,7 +10,6 @@ import { useToast } from "@/context/ToastContext";
 import { Modal } from "@/components/ui/Modal";
 
 export default function CajeroPage() {
-    const { profile } = useAuth();
     const { loadingOrders: loading, orders, markOrderAsPaid } = useOrders();
     const [paymentTypes, setPaymentTypes] = useState<PaymentType[]>([]);
     const [confirmingPay, setConfirmingPay] = useState<string | null>(null);
@@ -83,8 +81,7 @@ export default function CajeroPage() {
                             </tr>
                         ) : (
                             unpaidOrders.map((order) => {
-                                // Administradores pueden cobrar siempre, cajeros solo si la comida ya fue servida
-                                const canPay = profile?.role === 'admin' || order.status === 'ready';
+                                const canPay = order.status === 'ready';
                                 const statusConfig = getStatusConfig(order.status);
 
                                 return (

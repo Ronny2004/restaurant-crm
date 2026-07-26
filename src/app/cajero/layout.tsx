@@ -1,5 +1,6 @@
-import { RoleGuard } from "@/components/auth/RoleGuard";
+import { requirePageRole } from "@/lib/auth/authorization";
 
-export default function CashierLayout({ children }: { children: React.ReactNode }) {
-    return <RoleGuard allowedRoles={["cashier", "admin"]}>{children}</RoleGuard>;
+export default async function CashierLayout({ children }: { children: React.ReactNode }) {
+    await requirePageRole(["cashier", "admin"]);
+    return children;
 }
