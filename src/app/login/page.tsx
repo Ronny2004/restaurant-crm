@@ -90,6 +90,16 @@ export default function LoginPage() {
         <LoginShell
             title="Acceso del personal"
             description="Ingresa tu PIN de seis dígitos para continuar."
+            brandIconSrc="/assets/logo.webp"
+            brandIconAlt="Logo de Delicias Morán"
+            cardClassName="staff-login-card"
+            sideContent={(
+                <NumericKeypad
+                    value={pin}
+                    onChange={setPin}
+                    disabled={loading}
+                />
+            )}
         >
             <form className="auth-form" onSubmit={submitPin}>
                 <PinInput
@@ -98,7 +108,6 @@ export default function LoginPage() {
                     autoFocus
                     label="PIN de acceso"
                 />
-                <NumericKeypad value={pin} onChange={setPin} disabled={loading} />
                 <AuthMessage message={message} />
                 <button
                     className="btn btn-primary auth-submit"
@@ -187,10 +196,9 @@ export default function LoginPage() {
                 </div>
             )}
 
-            <div className="admin-login-link">
-                <span>¿Eres administrador?</span>
-                <Link href="/admin/login">Acceso seguro de administrador</Link>
-            </div>
+            <Link className="admin-login-button" href="/admin/login">
+                ¿Eres administrador?
+            </Link>
         </LoginShell>
     );
 }

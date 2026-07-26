@@ -378,11 +378,119 @@ textarea:focus {
   display: grid;
   place-items: center;
   padding: 1.5rem;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    linear-gradient(110deg, rgba(3, 7, 18, 0.77), rgba(15, 23, 42, 0.52)),
+    url("/assets/auth-restaurant-background.webp") center / cover no-repeat;
+}
+
+.auth-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(circle at 50% 44%, rgba(15, 23, 42, 0.08), rgba(2, 6, 23, 0.48) 74%),
+    linear-gradient(to bottom, rgba(2, 6, 23, 0.16), rgba(2, 6, 23, 0.58));
+  backdrop-filter: blur(1.5px);
+}
+
+.auth-stage {
+  width: 100%;
+  display: grid;
+  place-items: center;
+  position: relative;
+  z-index: 1;
+}
+
+.auth-stage-with-side {
+  grid-template-columns: minmax(0, 440px) 220px;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
 }
 
 .auth-card {
-  width: min(100%, 520px);
-  padding: clamp(1.4rem, 5vw, 2.5rem);
+  width: min(100%, 460px);
+  padding: clamp(1.3rem, 4vw, 1.8rem);
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(145deg, rgba(28, 32, 35, 0.91), rgba(15, 23, 42, 0.88));
+  border: 1px solid rgba(251, 191, 36, 0.2);
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.52),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(22px) saturate(0.88);
+}
+
+.auth-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(251, 191, 36, 0.72), transparent);
+  pointer-events: none;
+}
+
+.auth-card::after {
+  content: "";
+  position: absolute;
+  width: 190px;
+  height: 190px;
+  right: -105px;
+  bottom: -115px;
+  border-radius: 50%;
+  border: 1px solid rgba(251, 191, 36, 0.09);
+  box-shadow:
+    0 0 0 18px rgba(251, 191, 36, 0.025),
+    0 0 0 38px rgba(251, 191, 36, 0.018);
+  pointer-events: none;
+}
+
+.staff-login-card {
+  width: 100%;
+  padding: 1.45rem;
+}
+
+.staff-login-card .auth-brand {
+  gap: 0.8rem;
+  margin-bottom: 0.7rem;
+}
+
+.staff-login-card .auth-brand h1 {
+  font-size: clamp(1.4rem, 3vw, 1.7rem);
+}
+
+.staff-login-card .auth-description {
+  margin-bottom: 1.1rem;
+}
+
+.staff-login-card .pin-box {
+  aspect-ratio: 1;
+}
+
+.auth-side-panel {
+  width: 220px;
+  padding: 1rem;
+  background:
+    linear-gradient(145deg, rgba(28, 32, 35, 0.9), rgba(15, 23, 42, 0.88));
+  border-color: rgba(251, 191, 36, 0.2);
+  box-shadow:
+    0 20px 55px rgba(0, 0, 0, 0.48),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(22px) saturate(0.88);
+}
+
+.auth-side-panel .numeric-keypad {
+  width: 100%;
+  margin: 0;
+}
+
+.auth-mobile-side {
+  display: none;
 }
 
 .auth-brand {
@@ -398,15 +506,29 @@ textarea:focus {
 }
 
 .auth-brand-icon {
-  width: 58px;
-  height: 58px;
-  flex: 0 0 58px;
+  width: 54px;
+  height: 54px;
+  flex: 0 0 54px;
   display: grid;
   place-items: center;
   color: var(--primary);
   border-radius: 16px;
   background: rgba(251, 191, 36, 0.12);
   border: 1px solid rgba(251, 191, 36, 0.25);
+}
+
+.auth-brand-logo {
+  overflow: hidden;
+  padding: 2px;
+  background: rgba(12, 15, 20, 0.78);
+  border-color: rgba(251, 191, 36, 0.38);
+  box-shadow: 0 7px 20px rgba(0, 0, 0, 0.32);
+}
+
+.auth-brand-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .auth-eyebrow {
@@ -424,6 +546,7 @@ textarea:focus {
 
 .auth-description {
   margin-bottom: 1.5rem;
+  font-size: 0.9rem;
 }
 
 .auth-help {
@@ -471,6 +594,17 @@ textarea:focus {
   text-align: center;
   font-size: clamp(1.25rem, 5vw, 1.75rem);
   font-weight: 800;
+  color: #fff7d6;
+  background: rgba(8, 15, 28, 0.66);
+  border-color: rgba(148, 163, 184, 0.26);
+  box-shadow: inset 0 1px 6px rgba(0, 0, 0, 0.22);
+}
+
+.pin-box:focus {
+  border-color: var(--primary);
+  box-shadow:
+    0 0 0 2px rgba(251, 191, 36, 0.16),
+    0 0 18px rgba(251, 191, 36, 0.15);
 }
 
 .numeric-keypad {
@@ -487,12 +621,15 @@ textarea:focus {
   place-items: center;
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: rgba(15, 23, 42, 0.7);
+  background: linear-gradient(145deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.9));
   color: white;
   font-size: 1.2rem;
   font-weight: 700;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, transform 0.15s;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 5px 12px rgba(0, 0, 0, 0.16);
 }
 
 .numeric-keypad button:hover:not(:disabled) {
@@ -533,8 +670,7 @@ textarea:focus {
   border: 1px solid rgba(59, 130, 246, 0.28);
 }
 
-.auth-secondary-actions,
-.admin-login-link {
+.auth-secondary-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -565,7 +701,8 @@ textarea:focus {
   padding: 1rem;
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: rgba(15, 23, 42, 0.46);
+  background: rgba(8, 15, 28, 0.58);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 .auth-option-tabs {
@@ -594,12 +731,24 @@ textarea:focus {
   background: var(--primary);
 }
 
-.admin-login-link {
+.admin-login-button {
+  width: 100%;
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   margin-top: 1.4rem;
   padding-top: 1.1rem;
   border-top: 1px solid var(--border);
-  color: var(--text-muted);
-  font-size: 0.88rem;
+  color: var(--primary);
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.admin-login-button:hover {
+  color: #fde68a;
 }
 
 .auth-back {
@@ -620,10 +769,36 @@ textarea:focus {
     padding: 1.2rem;
   }
 
-  .auth-secondary-actions,
-  .admin-login-link {
+  .auth-secondary-actions {
     align-items: flex-start;
     flex-direction: column;
+  }
+}
+
+@media (max-width: 760px) {
+  .auth-stage-with-side {
+    display: block;
+    width: 100%;
+    max-width: 440px;
+  }
+
+  .staff-login-card {
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .auth-desktop-side {
+    display: none;
+  }
+
+  .auth-mobile-side {
+    display: block;
+    margin-bottom: 1rem;
+  }
+
+  .auth-mobile-side .numeric-keypad {
+    width: 100%;
+    max-width: none;
   }
 }
 
