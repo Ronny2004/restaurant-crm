@@ -120,7 +120,7 @@ export default function VentasTotalesPage() {
     const { reportes } = useSalesReports();
 
     const [filters, setFilters] = useState<FilterBlock[]>([{
-        id: Date.now().toString(),
+        id: "initial-filter",
         category: '',
         dateType: 'all',
         selectedDate: '',
@@ -305,17 +305,24 @@ export default function VentasTotalesPage() {
 
     const totalCalculado = sortedSales.reduce((acc, curr) => acc + curr.total, 0);
 
-    const handleExportExcel = async () => {
-
+    const handleExportExcel = () => {
         if (sortedSales.length === 0) return;
 
-        const ExcelJS = (await import("exceljs")).default;
-
-        const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet("Reporte de Ventas");
-
-        const tableRows = sortedSales.map(sale => [
-            new Date(sale.created_at).toLocaleString(),
+        const escapeCsv = (value: unknown) =>
+            `"${String(value ?? "").replaceAll('"', '""')}"`;
+        const headers = [
+            "Fecha y Hora",
+            "Mesa",
+            "Mesero",
+            "Cocinero",
+            "Cajero",
+            "Cancelado Por",
+            "Estado",
+            "Tipo Pago",
+            "Total ($)",
+        ];
+        const rows = sortedSales.map((sale) => [
+            new Date(sale.created_at).toLocaleString("es-EC"),
             `Mesa ${sale.table_number}`,
             sale.mesero,
             sale.cocinero,
@@ -323,76 +330,31 @@ export default function VentasTotalesPage() {
             sale.cancelado_por,
             sale.is_paid ? "Pagado" : traducirEstado(sale.status),
             sale.tipo_pago,
-            sale.total
+            sale.total.toFixed(2),
+        ]);
+        rows.push([
+            "TOTAL GENERAL",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            totalCalculado.toFixed(2),
         ]);
 
-        worksheet.addTable({
-            name: 'TablaDeVentas',
-            ref: 'A1',
-            headerRow: true,
-            totalsRow: false,
-            style: {
-                theme: 'TableStyleMedium2',
-                showRowStripes: true,
-            },
-            columns: [
-                { name: 'Fecha y Hora', filterButton: true },
-                { name: 'Mesa', filterButton: true },
-                { name: 'Mesero', filterButton: true },
-                { name: 'Cocinero', filterButton: true },
-                { name: 'Cajero', filterButton: true },
-                { name: 'Cancelado Por', filterButton: true },
-                { name: 'Estado', filterButton: true },
-                { name: 'Tipo Pago', filterButton: true },
-                { name: 'Total ($)', filterButton: true }
-            ],
-            rows: tableRows
-        });
-
-        worksheet.columns = [
-            { width: 22 }, // Fecha
-            { width: 12 }, // Mesa
-            { width: 15 }, // Mesero
-            { width: 15 }, // Cocinero
-            { width: 15 }, // Cajero
-            { width: 18 }, // Cancelado Por
-            { width: 15 }, // Estado
-            { width: 15 }, // Tipo Pago
-            { width: 12 }  // Total
-        ];
-
-        worksheet.getColumn(9).numFmt = '"$"#,##0.00';
-        worksheet.views = [{ state: "frozen", ySplit: 1 }];
-
-        const totalRowNumber = tableRows.length + 2;
-        const totalRow = worksheet.getRow(totalRowNumber);
-
-        totalRow.getCell(1).value = "TOTAL GENERAL";
-        totalRow.getCell(9).value = parseFloat(totalCalculado.toFixed(2));
-
-        totalRow.font = { bold: true };
-        totalRow.eachCell((cell) => {
-            cell.fill = {
-                type: "pattern",
-                pattern: "solid",
-                fgColor: { argb: "E7E6E6" }
-            };
-            cell.border = {
-                top: { style: "medium" },
-                bottom: { style: "medium" }
-            };
-        });
-
-        const buffer = await workbook.xlsx.writeBuffer();
-        const blob = new Blob([buffer], {
-            type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        });
+        const csv = "\uFEFF" + [headers, ...rows]
+            .map((row) => row.map(escapeCsv).join(";"))
+            .join("\r\n");
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
 
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = "Ventas Totales - Reporte LDM.xlsx";
+        a.download = "Ventas Totales - Reporte LDM.csv";
         a.click();
+        window.URL.revokeObjectURL(url);
     };
 
     return (
@@ -617,7 +579,7 @@ export default function VentasTotalesPage() {
                             }}
                         >
                             <Download size={18} />
-                            Reporte Excel
+                            Reporte CSV (Excel)
                         </button>
                     </div>
 

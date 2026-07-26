@@ -10,14 +10,15 @@ import {
     ClipboardList, 
     UserCircle, 
     LogOut, 
-    Settings, 
     User,
     Utensils, 
     Receipt,
+    Megaphone,
     ChevronDown,
     Menu, 
     X
 } from "lucide-react";
+import { CredentialExpiryBanner } from "@/components/auth/CredentialExpiryBanner";
 
 
 export function Header() {
@@ -40,6 +41,7 @@ export function Header() {
 
     if (pathname.includes('/admin')) {
         title = "Administrador";
+        if (pathname.includes('/campanas')) title = "Creación de Campañas";
         if (pathname.includes('/ventastotales')) title = "Historial de Ventas";
         if (pathname.includes('/pedidostotales')) title = "Historial de Pedidos";
         showBackButton = isAdmin; 
@@ -68,6 +70,7 @@ export function Header() {
             icon: LayoutDashboard, 
             href: '/admin',
             subItems: [
+                { label: 'Usuarios', href: '/admin/usuarios' },
                 { label: 'Historial de Ventas', href: '/admin/ventastotales' },
                 { label: 'Historial de Pedidos', href: '/admin/pedidostotales' }
             ]
@@ -75,6 +78,7 @@ export function Header() {
         { label: 'Mesero', icon: ClipboardList, href: '/mesero' },
         { label: 'Cocinero', icon: Utensils, href: '/cocina' },
         { label: 'Cajero', icon: Receipt, href: '/cajero' },
+        { label: 'Campañas', icon: Megaphone, href: '/admin/campanas' },
     ];
 
     const handleLogout = async () => {
@@ -258,19 +262,12 @@ export function Header() {
                                 gap: "0.2rem"
                             }}>
                                 <button 
+                                    onClick={() => router.push("/perfil/seguridad")}
                                     style={{ display: "flex", alignItems: "center", gap: "0.6rem", padding: "0.6rem", width: "100%", background: "transparent", border: "none", color: "white", cursor: "pointer", textAlign: "left", borderRadius: "4px", transition: "background 0.2s" }}
                                     onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
                                     onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                                 >
-                                    <User size={16} /> Datos Personales
-                                </button>
-                                
-                                <button 
-                                    style={{ display: "flex", alignItems: "center", gap: "0.6rem", padding: "0.6rem", width: "100%", background: "transparent", border: "none", color: "white", cursor: "pointer", textAlign: "left", borderRadius: "4px", transition: "background 0.2s" }}
-                                    onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
-                                    onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                                >
-                                    <Settings size={16} /> Configuración            
+                                    <User size={16} /> Seguridad
                                 </button>
                                 
                                 <div style={{ height: "1px", background: "var(--border)", margin: "0.3rem 0" }} />
@@ -352,6 +349,7 @@ export function Header() {
                     })}
                 </div>
             </header>
+            <CredentialExpiryBanner isAdmin={isAdmin} />
         </>
     );
 }

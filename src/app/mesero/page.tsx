@@ -166,7 +166,10 @@ export default function MeseroPage() {
         setSubmitting(true);
         try {
             // Usa el editTotal que ya calcula correctamente el precio
-            await updateOrder(editingOrder.id, { items: editCart, total: editTotal });
+            await updateOrder(editingOrder.id, {
+                items: editCart,
+                expectedUpdatedAt: editingOrder.updated_at,
+            });
             
             setEditingOrder(null);
             setEditCart([]);
@@ -217,8 +220,8 @@ export default function MeseroPage() {
     const total = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
     
     // CAMBIO CLAVE: Solo filtramos los que ya están servidos, para que el mesero vea los que están pagados pero aún en cocina/pendientes
-    const activeOrders = orders.filter(o => 
-        o.status !== 'ready'
+    const activeOrders = orders.filter(o =>
+        o.status !== 'ready' && o.status !== 'paid'
     ).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     // Total dinámico para el modal de edición (Soporta data de Supabase y del Carrito temporal)
     const editTotal = editCart.reduce((sum, item) => {

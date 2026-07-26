@@ -1,5 +1,6 @@
-import { RoleGuard } from "@/components/auth/RoleGuard";
+import { requirePageRole } from "@/lib/auth/authorization";
 
-export default function KitchenLayout({ children }: { children: React.ReactNode }) {
-    return <RoleGuard allowedRoles={["chef", "admin"]}>{children}</RoleGuard>;
+export default async function KitchenLayout({ children }: { children: React.ReactNode }) {
+    await requirePageRole(["chef", "admin"]);
+    return children;
 }

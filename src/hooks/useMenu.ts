@@ -107,27 +107,7 @@ export const useMenu = () => {
         const { error } = await supabase.rpc("delete_product_transaction", {
             p_product_id: id,
         });
-        if (error) {
-            const missingFunction = error.code === "PGRST202"
-                || error.code === "42883"
-                || error.message.toLowerCase().includes("could not find the function");
-            if (!missingFunction) throw error;
-
-            const { count, error: countError } = await supabase
-                .from("order_items")
-                .select("*", { count: "exact", head: true })
-                .eq("product_id", id);
-            if (countError) throw countError;
-            if (count) {
-                throw new Error("No se puede eliminar un producto que tiene historial de ventas.");
-            }
-
-            const { error: deleteError } = await supabase
-                .from("products")
-                .delete()
-                .eq("id", id);
-            if (deleteError) throw deleteError;
-        }
+        if (error) throw error;
         setProducts((current) => current.filter((product) => product.id !== id));
     };
 

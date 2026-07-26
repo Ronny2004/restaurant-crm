@@ -1,6 +1,5 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from "@/lib/supabase/client";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://example.com'
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'example-key'
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Alias temporal para los módulos operativos existentes. Las nuevas rutas
+// server-side usan clientes separados para navegador, sesión y administración.
+export const supabase = createClient();

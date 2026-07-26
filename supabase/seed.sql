@@ -1,0 +1,3 @@
+-- Los catálogos obligatorios se insertan mediante migraciones versionadas.
+-- Este archivo existe para que `supabase db reset` tenga un punto de seed
+-- válido sin introducir usuarios, productos ni datos específicos del entorno.

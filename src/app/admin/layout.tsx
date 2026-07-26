@@ -1,5 +1,6 @@
-import { RoleGuard } from "@/components/auth/RoleGuard";
+import { requirePageRole } from "@/lib/auth/authorization";
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
-    return <RoleGuard allowedRoles={["admin"]}>{children}</RoleGuard>;
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+    await requirePageRole(["admin"]);
+    return children;
 }
