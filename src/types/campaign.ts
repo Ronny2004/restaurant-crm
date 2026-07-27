@@ -26,6 +26,7 @@ export type Campaign = {
     reward: string;
     status: CampaignStatus;
     created_by: string;
+    archived_at: string | null;
     created_at: string;
     updated_at: string;
     response_count?: number;
