@@ -3,17 +3,22 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import {
+    Archive,
+    ArchiveRestore,
+    Bot,
     Check,
     Clipboard,
     Download,
     Edit2,
     ExternalLink,
+    FileText,
     Gift,
     Link2,
     Loader2,
     Megaphone,
     RefreshCw,
     Save,
+    Sparkles,
     Users,
 } from "lucide-react";
 import { AuthMessage } from "@/components/auth/AuthMessage";
@@ -31,6 +36,13 @@ type CampaignForm = {
     status: CampaignStatus;
 };
 
+type CampaignIdea = {
+    title: string;
+    description: string;
+    reward: string;
+    rationale: string;
+};
+
 const EMPTY_FORM: CampaignForm = {
     title: "",
     description: "",
@@ -38,17 +50,44 @@ const EMPTY_FORM: CampaignForm = {
     status: "active",
 };
 
+async function imageToPngDataUrl(source: string) {
+    return new Promise<string>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = image.naturalWidth;
+            canvas.height = image.naturalHeight;
+            const context = canvas.getContext("2d");
+            if (!context) {
+                reject(new Error("No se pudo preparar el logotipo"));
+                return;
+            }
+            context.drawImage(image, 0, 0);
+            resolve(canvas.toDataURL("image/png"));
+        };
+        image.onerror = () => reject(new Error("No se pudo cargar el logotipo"));
+        image.src = source;
+    });
+}
+
 export function CampaignManagement() {
     const [campaigns, setCampaigns] = useState<Campaign[]>([]);
     const [selected, setSelected] = useState<CampaignDetail | null>(null);
     const [createForm, setCreateForm] = useState<CampaignForm>(EMPTY_FORM);
     const [editForm, setEditForm] = useState<CampaignForm>(EMPTY_FORM);
     const [editing, setEditing] = useState(false);
+    const [showArchived, setShowArchived] = useState(false);
     const [loading, setLoading] = useState(true);
     const [working, setWorking] = useState(false);
+    const [pdfWorking, setPdfWorking] = useState(false);
     const [message, setMessage] = useState("");
     const [qrDataUrl, setQrDataUrl] = useState("");
     const [copied, setCopied] = useState(false);
+    const [aiObjective, setAiObjective] = useState("");
+    const [aiAudience, setAiAudience] = useState("");
+    const [aiContext, setAiContext] = useState("");
+    const [aiIdeas, setAiIdeas] = useState<CampaignIdea[]>([]);
+    const [aiLoading, setAiLoading] = useState(false);
 
     const publicUrl = useMemo(() => {
         if (!selected || typeof window === "undefined") {
@@ -61,9 +100,10 @@ export function CampaignManagement() {
         setLoading(true);
         setMessage("");
         try {
-            const response = await fetch("/api/admin/campaigns", {
-                cache: "no-store",
-            });
+            const response = await fetch(
+                `/api/admin/campaigns?archived=${showArchived}`,
+                { cache: "no-store" },
+            );
             const data = await response.json() as {
                 ok: boolean;
                 campaigns?: Campaign[];
@@ -73,12 +113,14 @@ export function CampaignManagement() {
             setCampaigns(data.campaigns || []);
         } catch (error) {
             setMessage(
-                error instanceof Error ? error.message : "No se pudieron cargar las campañas",
+                error instanceof Error
+                    ? error.message
+                    : "No se pudieron cargar las campañas",
             );
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [showArchived]);
 
     const openCampaign = useCallback(async (id: string) => {
         setWorking(true);
@@ -111,6 +153,7 @@ export function CampaignManagement() {
     }, []);
 
     useEffect(() => {
+        setSelected(null);
         void loadCampaigns();
     }, [loadCampaigns]);
 
@@ -120,11 +163,11 @@ export function CampaignManagement() {
             return;
         }
         void QRCode.toDataURL(publicUrl, {
-            width: 320,
+            width: 560,
             margin: 2,
             errorCorrectionLevel: "M",
             color: {
-                dark: "#0f172a",
+                dark: "#4b2416",
                 light: "#ffffff",
             },
         }).then(setQrDataUrl);
@@ -149,7 +192,7 @@ export function CampaignManagement() {
             setCreateForm(EMPTY_FORM);
             await loadCampaigns();
             await openCampaign(data.campaign.id);
-            setMessage("Campaña creada. El enlace y el QR están listos.");
+            setMessage("Campaña creada. El enlace, QR y folleto están listos.");
         } catch (error) {
             setMessage(
                 error instanceof Error ? error.message : "No se pudo crear la campaña",
@@ -175,14 +218,10 @@ export function CampaignManagement() {
             );
             const data = await response.json() as {
                 ok: boolean;
-                campaign?: Campaign;
                 message?: string;
             };
             if (!data.ok) throw new Error(data.message);
-            await Promise.all([
-                loadCampaigns(),
-                openCampaign(selected.id),
-            ]);
+            await Promise.all([loadCampaigns(), openCampaign(selected.id)]);
             setMessage("Campaña actualizada.");
         } catch (error) {
             setMessage(
@@ -193,20 +232,284 @@ export function CampaignManagement() {
         }
     };
 
+    const toggleArchive = async () => {
+        if (!selected) return;
+        setWorking(true);
+        setMessage("");
+        try {
+            const archive = !selected.archived_at;
+            const response = await fetch(
+                `/api/admin/campaigns/${selected.id}/archive`,
+                {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ archived: archive }),
+                },
+            );
+            const data = await response.json() as {
+                ok: boolean;
+                message?: string;
+            };
+            if (!data.ok) throw new Error(data.message);
+            setSelected(null);
+            await loadCampaigns();
+            setMessage(
+                archive
+                    ? "Campaña archivada y formulario público cerrado."
+                    : "Campaña restaurada como cerrada. Actívala cuando esté lista.",
+            );
+        } catch (error) {
+            setMessage(
+                error instanceof Error ? error.message : "No se pudo actualizar el archivo",
+            );
+        } finally {
+            setWorking(false);
+        }
+    };
+
+    const generateIdeas = async () => {
+        setAiLoading(true);
+        setMessage("");
+        setAiIdeas([]);
+        try {
+            const response = await fetch("/api/admin/campaigns/ideas", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    objective: aiObjective,
+                    audience: aiAudience,
+                    extraContext: aiContext,
+                }),
+            });
+            const data = await response.json() as {
+                ok: boolean;
+                ideas?: CampaignIdea[];
+                message?: string;
+            };
+            if (!data.ok || !data.ideas) throw new Error(data.message);
+            setAiIdeas(data.ideas);
+        } catch (error) {
+            setMessage(
+                error instanceof Error ? error.message : "No se pudieron generar ideas",
+            );
+        } finally {
+            setAiLoading(false);
+        }
+    };
+
+    const applyIdea = (idea: CampaignIdea) => {
+        setCreateForm({
+            title: idea.title,
+            description: idea.description,
+            reward: idea.reward,
+            status: "active",
+        });
+        document.querySelector(".campaign-create-panel")?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+        });
+    };
+
     const copyUrl = async () => {
         await navigator.clipboard.writeText(publicUrl);
         setCopied(true);
         window.setTimeout(() => setCopied(false), 1500);
     };
 
+    const downloadFlyer = async () => {
+        if (!selected || !qrDataUrl) return;
+        setPdfWorking(true);
+        setMessage("");
+        try {
+            const [{ jsPDF }, logoDataUrl] = await Promise.all([
+                import("jspdf"),
+                imageToPngDataUrl("/assets/logo.webp"),
+            ]);
+            const document = new jsPDF({
+                orientation: "portrait",
+                unit: "mm",
+                format: "a4",
+            });
+
+            const pageWidth = 210;
+            const flyerHeight = 148.5;
+
+            const drawFlyer = (offsetY: number) => {
+                const top = offsetY + 7;
+                document.setFillColor(255, 249, 235);
+                document.roundedRect(7, top, 196, 134.5, 3, 3, "F");
+
+                document.setFillColor(140, 62, 25);
+                document.roundedRect(7, top, 196, 31, 3, 3, "F");
+                document.addImage(logoDataUrl, "PNG", 12, top + 3, 25, 25);
+
+                document.setTextColor(255, 250, 240);
+                document.setFont("helvetica", "bold");
+                document.setFontSize(17);
+                document.text("DELICIAS MORÁN", 42, top + 12);
+                document.setFont("helvetica", "normal");
+                document.setFontSize(9);
+                document.text("Comida ecuatoriana hecha con cariño", 42, top + 20);
+
+                document.setTextColor(87, 39, 20);
+                document.setFont("helvetica", "bold");
+                document.setFontSize(18);
+                document.text("¡PARTICIPA Y GANA!", 12, top + 43);
+
+                document.setFontSize(14);
+                const titleLines = document.splitTextToSize(selected.title, 123);
+                document.text(titleLines.slice(0, 2), 12, top + 53);
+
+                document.setFont("helvetica", "normal");
+                document.setFontSize(9.5);
+                document.setTextColor(79, 65, 55);
+                const descriptionLines = document.splitTextToSize(
+                    selected.description,
+                    123,
+                );
+                document.text(descriptionLines.slice(0, 4), 12, top + 70);
+
+                document.setFillColor(243, 218, 168);
+                document.roundedRect(12, top + 94, 123, 23, 2, 2, "F");
+                document.setTextColor(87, 39, 20);
+                document.setFont("helvetica", "bold");
+                document.setFontSize(9);
+                document.text("ESTÁS PARTICIPANDO POR:", 17, top + 102);
+                document.setFontSize(11);
+                const rewardLines = document.splitTextToSize(selected.reward, 112);
+                document.text(rewardLines.slice(0, 2), 17, top + 109);
+
+                document.setFillColor(255, 255, 255);
+                document.roundedRect(145, top + 40, 49, 62, 3, 3, "F");
+                document.addImage(qrDataUrl, "PNG", 150, top + 44, 39, 39);
+                document.setFont("helvetica", "bold");
+                document.setFontSize(8);
+                document.setTextColor(87, 39, 20);
+                document.text("ESCANEA Y PARTICIPA", 169.5, top + 89, {
+                    align: "center",
+                });
+                document.setFont("helvetica", "normal");
+                document.setFontSize(7);
+                document.text("Solo te tomará un minuto", 169.5, top + 95, {
+                    align: "center",
+                });
+
+                document.setDrawColor(224, 188, 126);
+                document.line(12, top + 124, 198, top + 124);
+                document.setFontSize(8);
+                document.setTextColor(111, 78, 55);
+                document.text(
+                    "Gracias por ayudarnos a crear mejores experiencias para ti.",
+                    pageWidth / 2,
+                    top + 131,
+                    { align: "center" },
+                );
+            };
+
+            drawFlyer(0);
+            drawFlyer(flyerHeight);
+            document.setDrawColor(155, 118, 87);
+            document.setLineDashPattern([2, 2], 0);
+            document.line(5, flyerHeight, 205, flyerHeight);
+            document.save(`folleto-${selected.slug}.pdf`);
+        } catch (error) {
+            setMessage(
+                error instanceof Error ? error.message : "No se pudo generar el PDF",
+            );
+        } finally {
+            setPdfWorking(false);
+        }
+    };
+
     return (
         <div className="campaign-admin-layout">
+            <section className="glass-panel campaign-ai-panel">
+                <div className="campaign-section-title">
+                    <Bot size={25} />
+                    <div>
+                        <p className="auth-eyebrow">Asistente creativo</p>
+                        <h2>Estrategia para tu próxima campaña</h2>
+                        <p>
+                            Genera sorteos pensados para conocer mejor al cliente sin
+                            exponer los objetivos internos del negocio.
+                        </p>
+                    </div>
+                </div>
+                <div className="campaign-ai-fields">
+                    <label>
+                        Enfoque adicional (opcional)
+                        <textarea
+                            rows={3}
+                            maxLength={600}
+                            placeholder="Ej.: conocer mejor a las familias que nos visitan. Si lo dejas vacío, el asistente aplicará la estrategia general."
+                            value={aiObjective}
+                            onChange={(event) => setAiObjective(event.target.value)}
+                        />
+                    </label>
+                    <label>
+                        Público deseado
+                        <input
+                            maxLength={160}
+                            placeholder="Ej.: familias de Calderón y Carapungo"
+                            value={aiAudience}
+                            onChange={(event) => setAiAudience(event.target.value)}
+                        />
+                    </label>
+                    <label>
+                        Condiciones o contexto
+                        <input
+                            maxLength={500}
+                            placeholder="Ej.: premio sencillo, campaña durante agosto"
+                            value={aiContext}
+                            onChange={(event) => setAiContext(event.target.value)}
+                        />
+                    </label>
+                    <button
+                        type="button"
+                        className="btn btn-primary"
+                        disabled={
+                            aiLoading
+                            || (
+                                aiObjective.trim().length > 0
+                                && aiObjective.trim().length < 10
+                            )
+                        }
+                        onClick={() => void generateIdeas()}
+                    >
+                        {aiLoading
+                            ? <Loader2 className="animate-spin" size={19} />
+                            : <Sparkles size={19} />}
+                        Generar ideas
+                    </button>
+                </div>
+                {aiIdeas.length > 0 && (
+                    <div className="campaign-idea-grid">
+                        {aiIdeas.map((idea, index) => (
+                            <article className="campaign-idea-card" key={`${idea.title}-${index}`}>
+                                <span>Idea {index + 1}</span>
+                                <h3>{idea.title}</h3>
+                                <p>{idea.description}</p>
+                                <div><Gift size={16} /> {idea.reward}</div>
+                                <small>{idea.rationale}</small>
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary"
+                                    onClick={() => applyIdea(idea)}
+                                >
+                                    Usar esta idea
+                                </button>
+                            </article>
+                        ))}
+                    </div>
+                )}
+            </section>
+
             <section className="glass-panel campaign-create-panel">
                 <div className="campaign-section-title">
                     <Megaphone size={24} />
                     <div>
                         <h2>Nueva campaña</h2>
-                        <p>El formulario público siempre conservará la misma plantilla.</p>
+                        <p>El formulario público conservará la misma plantilla.</p>
                     </div>
                 </div>
 
@@ -264,16 +567,30 @@ export function CampaignManagement() {
             <section className="glass-panel campaign-list-panel">
                 <div className="campaign-section-title campaign-list-heading">
                     <div>
-                        <h2>Campañas creadas</h2>
+                        <h2>{showArchived ? "Campañas archivadas" : "Campañas creadas"}</h2>
                         <p>{campaigns.length} campaña(s)</p>
                     </div>
-                    <button
-                        className="btn btn-secondary"
-                        onClick={() => void loadCampaigns()}
-                        disabled={loading}
-                    >
-                        <RefreshCw size={18} />
-                    </button>
+                    <div className="campaign-list-actions">
+                        <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() => setShowArchived((value) => !value)}
+                        >
+                            {showArchived
+                                ? <ArchiveRestore size={18} />
+                                : <Archive size={18} />}
+                            {showArchived ? "Volver a campañas" : "Campañas archivadas"}
+                        </button>
+                        <button
+                            type="button"
+                            className="btn btn-secondary campaign-refresh"
+                            aria-label="Actualizar campañas"
+                            onClick={() => void loadCampaigns()}
+                            disabled={loading}
+                        >
+                            <RefreshCw size={18} />
+                        </button>
+                    </div>
                 </div>
 
                 <AuthMessage message={message} />
@@ -283,7 +600,9 @@ export function CampaignManagement() {
                     </div>
                 ) : campaigns.length === 0 ? (
                     <p className="campaign-empty">
-                        Crea tu primera campaña para obtener un enlace y QR.
+                        {showArchived
+                            ? "No hay campañas archivadas."
+                            : "Crea tu primera campaña para obtener un enlace y QR."}
                     </p>
                 ) : (
                     <div className="campaign-list">
@@ -298,7 +617,11 @@ export function CampaignManagement() {
                                 <div>
                                     <strong>{campaign.title}</strong>
                                     <span>
-                                        {campaign.status === "active" ? "Activa" : "Cerrada"}
+                                        {campaign.archived_at
+                                            ? "Archivada"
+                                            : campaign.status === "active"
+                                                ? "Activa"
+                                                : "Cerrada"}
                                     </span>
                                 </div>
                                 <span className="campaign-response-count">
@@ -318,13 +641,27 @@ export function CampaignManagement() {
                             <p className="auth-eyebrow">Campaña seleccionada</p>
                             <h2>{selected.title}</h2>
                         </div>
-                        <button
-                            className="btn btn-secondary"
-                            onClick={() => setEditing(!editing)}
-                        >
-                            <Edit2 size={18} />
-                            Editar
-                        </button>
+                        <div className="campaign-detail-actions">
+                            <button
+                                type="button"
+                                className="btn btn-secondary"
+                                onClick={() => setEditing(!editing)}
+                            >
+                                <Edit2 size={18} />
+                                Editar
+                            </button>
+                            <button
+                                type="button"
+                                className="btn btn-secondary"
+                                onClick={() => void toggleArchive()}
+                                disabled={working}
+                            >
+                                {selected.archived_at
+                                    ? <ArchiveRestore size={18} />
+                                    : <Archive size={18} />}
+                                {selected.archived_at ? "Restaurar" : "Archivar"}
+                            </button>
+                        </div>
                     </div>
 
                     {editing ? (
@@ -333,6 +670,8 @@ export function CampaignManagement() {
                                 Título
                                 <input
                                     required
+                                    minLength={3}
+                                    maxLength={120}
                                     value={editForm.title}
                                     onChange={(event) => setEditForm({
                                         ...editForm,
@@ -344,6 +683,8 @@ export function CampaignManagement() {
                                 Descripción
                                 <textarea
                                     required
+                                    minLength={3}
+                                    maxLength={1200}
                                     rows={4}
                                     value={editForm.description}
                                     onChange={(event) => setEditForm({
@@ -356,6 +697,8 @@ export function CampaignManagement() {
                                 Premio o recompensa
                                 <textarea
                                     required
+                                    minLength={2}
+                                    maxLength={300}
                                     rows={3}
                                     value={editForm.reward}
                                     onChange={(event) => setEditForm({
@@ -365,9 +708,10 @@ export function CampaignManagement() {
                                 />
                             </label>
                             <label>
-                                Estado
+                                Estado del formulario público
                                 <select
                                     value={editForm.status}
+                                    disabled={Boolean(selected.archived_at)}
                                     onChange={(event) => setEditForm({
                                         ...editForm,
                                         status: event.target.value as CampaignStatus,
@@ -394,43 +738,61 @@ export function CampaignManagement() {
                         </>
                     )}
 
-                    <div className="campaign-share-grid">
-                        <div className="campaign-share-info">
-                            <h3><Link2 size={19} /> Enlace público</h3>
-                            <div className="campaign-url-row">
-                                <input readOnly value={publicUrl} />
-                                <button className="btn btn-secondary" onClick={copyUrl}>
-                                    {copied ? <Check size={18} /> : <Clipboard size={18} />}
-                                    {copied ? "Copiado" : "Copiar"}
-                                </button>
+                    {!selected.archived_at && (
+                        <div className="campaign-share-grid">
+                            <div className="campaign-share-info">
+                                <h3><Link2 size={19} /> Enlace público</h3>
+                                <div className="campaign-url-row">
+                                    <input readOnly value={publicUrl} />
+                                    <button
+                                        type="button"
+                                        className="btn btn-secondary"
+                                        onClick={() => void copyUrl()}
+                                    >
+                                        {copied ? <Check size={18} /> : <Clipboard size={18} />}
+                                        {copied ? "Copiado" : "Copiar"}
+                                    </button>
+                                </div>
+                                <a
+                                    className="btn btn-secondary"
+                                    href={publicUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                >
+                                    <ExternalLink size={18} />
+                                    Abrir formulario
+                                </a>
                             </div>
-                            <a
-                                className="btn btn-secondary"
-                                href={publicUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                            >
-                                <ExternalLink size={18} />
-                                Abrir formulario
-                            </a>
-                        </div>
 
-                        <div className="campaign-qr">
-                            {qrDataUrl && (
-                                // El QR es generado localmente como data URL.
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={qrDataUrl} alt={`QR de ${selected.title}`} />
-                            )}
-                            <a
-                                className="btn btn-secondary"
-                                href={qrDataUrl}
-                                download={`qr-${selected.slug}.png`}
-                            >
-                                <Download size={18} />
-                                Descargar QR
-                            </a>
+                            <div className="campaign-qr">
+                                {qrDataUrl && (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={qrDataUrl} alt={`QR de ${selected.title}`} />
+                                )}
+                                <div className="campaign-download-actions">
+                                    <a
+                                        className="btn btn-secondary"
+                                        href={qrDataUrl}
+                                        download={`qr-${selected.slug}.png`}
+                                    >
+                                        <Download size={18} />
+                                        Descargar QR
+                                    </a>
+                                    <button
+                                        type="button"
+                                        className="btn btn-primary"
+                                        disabled={pdfWorking || !qrDataUrl}
+                                        onClick={() => void downloadFlyer()}
+                                    >
+                                        {pdfWorking
+                                            ? <Loader2 className="animate-spin" size={18} />
+                                            : <FileText size={18} />}
+                                        Descargar PDF
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     <div className="campaign-responses">
                         <h3>

@@ -9,14 +9,18 @@ import { jsonError, safeJson } from "@/lib/auth/responses";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
     const actor = await requireActiveProfile(["admin"]);
     if (!actor) {
         return jsonError("No autorizado", 401);
     }
 
     try {
-        return NextResponse.json({ ok: true, campaigns: await listCampaigns() });
+        const archived = request.nextUrl.searchParams.get("archived") === "true";
+        return NextResponse.json({
+            ok: true,
+            campaigns: await listCampaigns(archived),
+        });
     } catch (error) {
         return jsonError(
             error instanceof Error ? error.message : "No se pudieron consultar las campañas",

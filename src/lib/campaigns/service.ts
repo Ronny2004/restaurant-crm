@@ -25,12 +25,18 @@ export function createCampaignSlug(title: string) {
     return `${slugify(title)}-${randomBytes(5).toString("hex")}`;
 }
 
-export async function listCampaigns() {
+export async function listCampaigns(archived = false) {
     const admin = createAdminClient();
-    const { data: campaigns, error } = await admin
+    let query = admin
         .from("campaigns")
         .select("*, campaign_responses(count)")
         .order("created_at", { ascending: false });
+
+    query = archived
+        ? query.not("archived_at", "is", null)
+        : query.is("archived_at", null);
+
+    const { data: campaigns, error } = await query;
 
     if (error) {
         throw new Error(error.message || "No se pudieron consultar las campañas");
@@ -118,6 +124,24 @@ export async function updateCampaign(
     return data as Campaign | null;
 }
 
+export async function setCampaignArchived(id: string, archived: boolean) {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+        .from("campaigns")
+        .update({
+            archived_at: archived ? new Date().toISOString() : null,
+            ...(archived ? { status: "closed" } : {}),
+        })
+        .eq("id", id)
+        .select("*")
+        .maybeSingle();
+
+    if (error) {
+        throw new Error(error.message);
+    }
+    return data as Campaign | null;
+}
+
 export async function getPublicCampaign(slug: string) {
     const admin = createAdminClient();
     const [{ data: campaign, error }, { data: products, error: productError }] =
@@ -127,6 +151,7 @@ export async function getPublicCampaign(slug: string) {
                 .select("id,slug,title,description,reward,status")
                 .eq("slug", slug)
                 .eq("status", "active")
+                .is("archived_at", null)
                 .maybeSingle(),
             admin
                 .from("products")

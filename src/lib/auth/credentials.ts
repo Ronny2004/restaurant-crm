@@ -3,6 +3,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
     hashSecret,
+    isWeakPin,
     keyedLookup,
     normalizePin,
     verifySecret,
@@ -69,6 +70,12 @@ export async function setUserPin(
         throw new Error("El PIN debe contener exactamente 6 dígitos");
     }
 
+    if (isWeakPin(pin)) {
+        throw new Error(
+            "El PIN es muy simple. Ingresa uno más seguro",
+        );
+    }
+
     const admin = createAdminClient();
     const pinLookup = keyedLookup("pin", pin);
     const pinHash = await hashSecret(pin);
@@ -83,7 +90,7 @@ export async function setUserPin(
         .maybeSingle();
 
     if (owner) {
-        throw new Error("Ese PIN ya está asignado. Elige otro diferente");
+        throw new Error("No se pudo configurar este PIN. Ingresa uno diferente");
     }
 
     const { error } = await admin
@@ -102,7 +109,7 @@ export async function setUserPin(
 
     if (error) {
         if (error.code === "23505") {
-            throw new Error("Ese PIN ya está asignado. Elige otro diferente");
+            throw new Error("No se pudo configurar este PIN. Ingresa uno diferente");
         }
         throw new Error(`No se pudo guardar el PIN: ${error.message}`);
     }

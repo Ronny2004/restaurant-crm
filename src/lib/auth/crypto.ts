@@ -48,6 +48,37 @@ export function normalizePin(value: unknown) {
     return value;
 }
 
+export function isWeakPin(pin: string) {
+    if (!normalizePin(pin)) {
+        return true;
+    }
+
+    const digits = [...pin].map(Number);
+    const frequencies = new Map<string, number>();
+
+    for (const digit of pin) {
+        frequencies.set(digit, (frequencies.get(digit) ?? 0) + 1);
+    }
+
+    const hasFiveEqualDigits = Math.max(...frequencies.values()) >= 5;
+    const isAscendingSequence = digits.every(
+        (digit, index) => index === 0 || digit === digits[index - 1] + 1,
+    );
+    const isDescendingSequence = digits.every(
+        (digit, index) => index === 0 || digit === digits[index - 1] - 1,
+    );
+    const hasRepeatedPattern =
+        pin.slice(0, 2).repeat(3) === pin
+        || pin.slice(0, 3).repeat(2) === pin;
+
+    return (
+        hasFiveEqualDigits
+        || isAscendingSequence
+        || isDescendingSequence
+        || hasRepeatedPattern
+    );
+}
+
 export function normalizeIdentifier(value: unknown) {
     if (typeof value !== "string") {
         return null;
