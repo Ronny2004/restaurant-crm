@@ -427,11 +427,11 @@ export function CampaignManagement() {
                 <div className="campaign-section-title">
                     <Bot size={25} />
                     <div>
-                        <p className="auth-eyebrow">Asistente creativo</p>
-                        <h2>Estrategia para tu próxima campaña</h2>
+                        <p className="auth-eyebrow">Asistente de ideas</p>
+                        <h2>Inspiración para tu próxima campaña</h2>
                         <p>
-                            Genera sorteos pensados para conocer mejor al cliente sin
-                            exponer los objetivos internos del negocio.
+                            Recibe borradores orientativos de atención al cliente y
+                            marketing. Revísalos y adáptalos antes de crear la campaña.
                         </p>
                     </div>
                 </div>
@@ -486,7 +486,7 @@ export function CampaignManagement() {
                     <div className="campaign-idea-grid">
                         {aiIdeas.map((idea, index) => (
                             <article className="campaign-idea-card" key={`${idea.title}-${index}`}>
-                                <span>Idea {index + 1}</span>
+                                <span>Idea orientativa {index + 1}</span>
                                 <h3>{idea.title}</h3>
                                 <p>{idea.description}</p>
                                 <div><Gift size={16} /> {idea.reward}</div>
@@ -496,7 +496,7 @@ export function CampaignManagement() {
                                     className="btn btn-secondary"
                                     onClick={() => applyIdea(idea)}
                                 >
-                                    Usar esta idea
+                                    Usar como borrador
                                 </button>
                             </article>
                         ))}
