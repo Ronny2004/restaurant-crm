@@ -8,9 +8,12 @@ import { Header } from "@/components/layout/Header";
 import { DollarSign, Lock } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 import { Modal } from "@/components/ui/Modal";
+import { useAuth } from "@/context/AuthContext";
 
 export default function CajeroPage() {
     const { loadingOrders: loading, orders, markOrderAsPaid } = useOrders();
+    const { profile, loading: loadingProfile } = useAuth();
+    const isAdmin = profile?.role === "admin";
     const [paymentTypes, setPaymentTypes] = useState<PaymentType[]>([]);
     const [confirmingPay, setConfirmingPay] = useState<string | null>(null);
 
@@ -44,7 +47,7 @@ export default function CajeroPage() {
         .filter(o => !o.is_paid)
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-    if (loading) return <div className="container">Cargando...</div>;
+    if (loading || loadingProfile) return <div className="container">Cargando pedidos...</div>;
 
     const handlePay = async () => {
         if (confirmingPay && paymentMethod !== "") {
@@ -62,6 +65,24 @@ export default function CajeroPage() {
     return (
         <div className="container">
             <Header />
+
+            <div
+                className="glass-panel"
+                style={{
+                    marginBottom: "1rem",
+                    padding: "1rem 1.25rem",
+                    borderColor: isAdmin ? "var(--primary)" : "var(--border)",
+                }}
+            >
+                <strong style={{ color: isAdmin ? "var(--primary)" : "white" }}>
+                    {isAdmin ? "Modo administrador" : "Flujo de caja"}
+                </strong>
+                <p style={{ margin: "0.35rem 0 0", color: "var(--text-muted)" }}>
+                    {isAdmin
+                        ? "Puedes cobrar cualquier pedido pendiente, sin importar su estado operativo."
+                        : "El cobro se habilita cuando el mesero entrega el pedido y lo marca listo para pagar."}
+                </p>
+            </div>
 
             <div className="glass-panel" style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "600px" }}>
@@ -81,7 +102,7 @@ export default function CajeroPage() {
                             </tr>
                         ) : (
                             unpaidOrders.map((order) => {
-                                const canPay = order.status === 'ready';
+                                const canPay = isAdmin || order.status === 'ready';
                                 const statusConfig = getStatusConfig(order.status);
 
                                 return (
@@ -134,8 +155,10 @@ export default function CajeroPage() {
                                                     transition: "all 0.2s ease"
                                                 }}
                                             >
-                                                {canPay ? <DollarSign size={16} /> : <Lock size={16} />}
-                                                {canPay ? 'Cobrar' : 'Pendiente'}
+                                                    {canPay ? <DollarSign size={16} /> : <Lock size={16} />}
+                                                    {canPay
+                                                        ? (isAdmin && order.status !== 'ready' ? 'Cobrar como admin' : 'Cobrar')
+                                                        : 'Esperando al mesero'}
                                             </button>
                                         </td>
                                     </tr>
