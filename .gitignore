@@ -4,6 +4,9 @@ node_modules/
 .pnp.js
 .yarn/
 
+# --- Aplicacion movil privada (no versionar) ---
+/android-app/
+
 # --- CARPETAS QUE DICES QUE SE SIGUEN SUBIENDO ---
 respaldosmobile/
 **/respaldosmobile/
