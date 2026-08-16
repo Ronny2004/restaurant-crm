@@ -147,6 +147,23 @@ cancelación. Los clientes no escriben ninguna de las dos tablas.
 `reporte_ventas` conserva incluso los pedidos cancelados, pero solo las RPC
 pueden modificarlo.
 
+## Eliminación administrativa de usuarios
+
+La migración `20260816200000_admin_user_deletion.sql` incorpora
+`delete_managed_user_admin(p_user_id, p_actor_id)`. Solo `service_role` puede
+ejecutarla y la propia función comprueba que el actor sea un administrador
+activo. También impide que un administrador elimine su propia cuenta.
+
+La operación elimina transaccionalmente la identidad de `auth.users`; las
+credenciales, challenges y códigos temporales desaparecen por cascada. El
+perfil se elimina, pero los pedidos, campañas, mesas, QR, sorteos y auditorías
+históricas se conservan. Las referencias al perfil eliminado quedan nulas y la
+auditoría conserva una instantánea del usuario y del administrador responsable.
+
+`supabase/tests/admin_user_deletion.sql` valida permisos, autoeliminación,
+limpieza de la identidad y conservación de la auditoría dentro de
+`BEGIN/ROLLBACK`.
+
 ## Realtime
 
 La publicación contiene:

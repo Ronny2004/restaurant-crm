@@ -352,3 +352,37 @@ export async function changeManagedUserStatus(
         profile: data as AppProfile,
     };
 }
+
+type DeleteManagedUserResult = {
+    profile: AppProfile;
+    summary: Record<string, number>;
+};
+
+export async function deleteManagedUser(
+    userId: string,
+    actorId: string,
+): Promise<DeleteManagedUserResult> {
+    const admin = createAdminClient();
+    const { data, error } = await admin.rpc("delete_managed_user_admin", {
+        p_user_id: userId,
+        p_actor_id: actorId,
+    });
+
+    if (error || !data || typeof data !== "object" || Array.isArray(data)) {
+        throw new Error(error?.message || "No se pudo eliminar el usuario");
+    }
+
+    const result = data as {
+        profile?: AppProfile;
+        summary?: Record<string, number>;
+    };
+
+    if (!result.profile?.id) {
+        throw new Error("La base no devolvió el usuario eliminado");
+    }
+
+    return {
+        profile: result.profile,
+        summary: result.summary || {},
+    };
+}

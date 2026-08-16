@@ -4,6 +4,7 @@ import { requireActiveProfile } from "@/lib/auth/authorization";
 import { getRequestContext } from "@/lib/auth/request-context";
 import { jsonError, safeJson } from "@/lib/auth/responses";
 import {
+    deleteManagedUser,
     isUserRole,
     normalizeUsername,
     updateManagedUser,
@@ -91,6 +92,52 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     } catch (error) {
         return jsonError(
             error instanceof Error ? error.message : "No se pudo actualizar el usuario",
+            409,
+        );
+    }
+}
+
+export async function DELETE(request: NextRequest, context: RouteContext) {
+    const actor = await requireActiveProfile(["admin"]);
+    if (!actor) {
+        return jsonError("No autorizado", 401);
+    }
+
+    const { userId } = await context.params;
+    if (userId === actor.id) {
+        return jsonError("No puedes eliminar tu propia cuenta", 409);
+    }
+
+    const requestContext = getRequestContext(request);
+
+    try {
+        const { profile, summary } = await deleteManagedUser(userId, actor.id);
+
+        await recordManagementAudit(requestContext, {
+            action: "deleted",
+            actor: {
+                id: actor.id,
+                username: actor.username,
+                role: actor.role,
+            },
+            target: {
+                id: profile.id,
+                email: profile.email,
+                username: profile.username,
+            },
+            changedFields: ["identity", "profile", "credentials"],
+            oldData: profile,
+            reason: "Eliminación definitiva solicitada por un administrador",
+            metadata: summary,
+        });
+
+        return NextResponse.json({
+            ok: true,
+            message: "Usuario eliminado definitivamente",
+        });
+    } catch (error) {
+        return jsonError(
+            error instanceof Error ? error.message : "No se pudo eliminar el usuario",
             409,
         );
     }

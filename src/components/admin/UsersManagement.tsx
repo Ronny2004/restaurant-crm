@@ -11,6 +11,7 @@ import {
     RefreshCw,
     Search,
     ShieldCheck,
+    Trash2,
     UserRound,
 } from "lucide-react";
 import { AuthMessage } from "@/components/auth/AuthMessage";
@@ -58,6 +59,7 @@ export function UsersManagement({ currentUserId }: { currentUserId: string }) {
     const [statusReason, setStatusReason] = useState("");
     const [emergencyUser, setEmergencyUser] = useState<ManagedUser | null>(null);
     const [emergencyCode, setEmergencyCode] = useState("");
+    const [deletingUser, setDeletingUser] = useState<ManagedUser | null>(null);
 
     const loadUsers = useCallback(async (query = "") => {
         setLoading(true);
@@ -206,6 +208,20 @@ export function UsersManagement({ currentUserId }: { currentUserId: string }) {
         }
     };
 
+    const deleteUser = async () => {
+        if (!deletingUser) return;
+        try {
+            await request(`/api/admin/users/${deletingUser.id}`, {
+                method: "DELETE",
+            });
+            setDeletingUser(null);
+            setMessage("Usuario eliminado correctamente");
+            await loadUsers(search);
+        } catch (error) {
+            setMessage(error instanceof Error ? error.message : "No se pudo eliminar el usuario");
+        }
+    };
+
     return (
         <>
             <div className="users-toolbar">
@@ -331,6 +347,14 @@ export function UsersManagement({ currentUserId }: { currentUserId: string }) {
                                                 onClick={() => setStatusUser(user)}
                                             >
                                                 <Power size={17} />
+                                            </button>
+                                            <button
+                                                className="user-delete-action"
+                                                title="Eliminar usuario definitivamente"
+                                                disabled={user.id === currentUserId}
+                                                onClick={() => setDeletingUser(user)}
+                                            >
+                                                <Trash2 size={17} />
                                             </button>
                                         </div>
                                     </td>
@@ -616,6 +640,42 @@ export function UsersManagement({ currentUserId }: { currentUserId: string }) {
                                 </p>
                             </>
                         )}
+                    </div>
+                )}
+            </Modal>
+
+            <Modal
+                isOpen={Boolean(deletingUser)}
+                onClose={() => !working && setDeletingUser(null)}
+                title="Eliminar usuario"
+            >
+                {deletingUser && (
+                    <div className="admin-user-form">
+                        <p>
+                            Se eliminarán definitivamente la cuenta de acceso, el perfil y las credenciales de
+                            <strong> {deletingUser.full_name || deletingUser.username}</strong>.
+                        </p>
+                        <p className="auth-help">
+                            Los pedidos, campañas y auditorías históricas se conservarán. Esta acción no se puede deshacer.
+                        </p>
+                        <div className="modal-actions">
+                            <button
+                                type="button"
+                                className="btn btn-secondary"
+                                onClick={() => setDeletingUser(null)}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                className="btn btn-danger"
+                                disabled={working}
+                                onClick={() => void deleteUser()}
+                            >
+                                {working ? <Loader2 className="animate-spin" size={18} /> : <Trash2 size={18} />}
+                                Eliminar definitivamente
+                            </button>
+                        </div>
                     </div>
                 )}
             </Modal>
