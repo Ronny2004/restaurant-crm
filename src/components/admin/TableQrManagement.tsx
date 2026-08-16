@@ -16,6 +16,7 @@ import {
     RefreshCw,
     Save,
     Table2,
+    Trash2,
 } from "lucide-react";
 import { AuthMessage } from "@/components/auth/AuthMessage";
 import type {
@@ -222,6 +223,56 @@ export function TableQrManagement() {
         }
     };
 
+    const deleteQr = async (qr: TableQrCode) => {
+        if (!window.confirm(`¿Eliminar definitivamente el QR "${qr.name}" y sus ${qr.total_scans} escaneo(s)?`)) return;
+        setWorking(true);
+        setMessage("");
+        try {
+            const response = await fetch(`/api/admin/table-qrs/codes/${qr.id}`, { method: "DELETE" });
+            const data = await response.json() as { ok: boolean; message?: string };
+            if (!data.ok) throw new Error(data.message);
+            if (editingQr?.id === qr.id) {
+                setEditingQr(null);
+                setQrForm({ ...EMPTY_QR_FORM, tableId: dashboard.tables[0]?.id || "", campaignId: dashboard.campaigns[0]?.id || "" });
+            }
+            await load();
+            setMessage("QR eliminado definitivamente.");
+        } catch (error) {
+            setMessage(error instanceof Error ? error.message : "No se pudo eliminar el QR");
+        } finally {
+            setWorking(false);
+        }
+    };
+
+    const deleteTable = async (table: TableQrDashboard["tables"][number]) => {
+        const confirmation = window.prompt(
+            `Esta acción eliminará la mesa, sus ${table.qr_codes.length} QR y todos sus escaneos.\n\nEscribe exactamente el nombre para confirmar:\n${table.name}`,
+        );
+        if (confirmation === null) return;
+        if (confirmation.trim() !== table.name) {
+            setMessage("El nombre no coincide. No se eliminó la mesa.");
+            return;
+        }
+        setWorking(true);
+        setMessage("");
+        try {
+            const response = await fetch(`/api/admin/table-qrs/tables/${table.id}`, { method: "DELETE" });
+            const data = await response.json() as { ok: boolean; message?: string };
+            if (!data.ok) throw new Error(data.message);
+            if (editingQr && table.qr_codes.some((qr) => qr.id === editingQr.id)) setEditingQr(null);
+            const fallbackTableId = dashboard.tables.find((item) => item.id !== table.id)?.id || "";
+            setQrForm((current) => current.tableId === table.id
+                ? { ...current, tableId: fallbackTableId }
+                : current);
+            await load();
+            setMessage("Mesa y recursos QR eliminados definitivamente.");
+        } catch (error) {
+            setMessage(error instanceof Error ? error.message : "No se pudo eliminar la mesa");
+        } finally {
+            setWorking(false);
+        }
+    };
+
     return (
         <div className="table-qr-admin">
             <section className="table-qr-summary-grid">
@@ -379,14 +430,19 @@ export function TableQrManagement() {
                             <article className="table-qr-table-card" key={table.id}>
                                 <header>
                                     <div><Table2 size={22} /><div><h3>{table.name}</h3><span>{table.qr_codes.length} QR configurado(s)</span></div></div>
-                                    <button
-                                        type="button"
-                                        className={`table-qr-status ${table.is_active ? "active" : "inactive"}`}
-                                        onClick={() => void toggleTable(table.id, !table.is_active)}
-                                        disabled={working}
-                                    >
-                                        <Power size={16} /> {table.is_active ? "Mesa activa" : "Mesa pausada"}
-                                    </button>
+                                    <div className="table-qr-table-actions">
+                                        <button
+                                            type="button"
+                                            className={`table-qr-status ${table.is_active ? "active" : "inactive"}`}
+                                            onClick={() => void toggleTable(table.id, !table.is_active)}
+                                            disabled={working}
+                                        >
+                                            <Power size={16} /> {table.is_active ? "Mesa activa" : "Mesa pausada"}
+                                        </button>
+                                        <button type="button" className="btn btn-danger" onClick={() => void deleteTable(table)} disabled={working}>
+                                            <Trash2 size={16} /> Eliminar mesa
+                                        </button>
+                                    </div>
                                 </header>
 
                                 {table.qr_codes.length === 0 ? (
@@ -402,7 +458,12 @@ export function TableQrManagement() {
                                                             <span>{qr.is_active ? "Activo" : "Pausado"}</span>
                                                             <h4>{qr.name}</h4>
                                                         </div>
-                                                        <button className="btn btn-secondary" onClick={() => editQr(qr)}>Editar</button>
+                                                        <div className="table-qr-code-actions">
+                                                            <button className="btn btn-secondary" onClick={() => editQr(qr)}>Editar</button>
+                                                            <button className="btn btn-danger" onClick={() => void deleteQr(qr)} disabled={working}>
+                                                                <Trash2 size={16} /> Eliminar
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                     <p className="table-qr-destination">
                                                         <Link2 size={16} />

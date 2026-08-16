@@ -19,6 +19,7 @@ import {
     Loader2,
     Save,
     Trophy,
+    Trash2,
     Users,
 } from "lucide-react";
 import { AuthMessage } from "@/components/auth/AuthMessage";
@@ -147,6 +148,32 @@ export function CampaignDetailManagement({
         }
     };
 
+    const deleteCampaign = async () => {
+        const confirmation = window.prompt(
+            `Esta acción borrará definitivamente la campaña, sus respuestas, sorteos y ganadores.\n\nEscribe exactamente el título para confirmar:\n${campaign.title}`,
+        );
+        if (confirmation === null) return;
+        if (confirmation.trim() !== campaign.title) {
+            setMessage("El título no coincide. No se eliminó la campaña.");
+            return;
+        }
+
+        setWorking(true);
+        setMessage("");
+        try {
+            const response = await fetch(`/api/admin/campaigns/${campaign.id}`, {
+                method: "DELETE",
+            });
+            const data = await response.json() as { ok: boolean; message?: string };
+            if (!data.ok) throw new Error(data.message);
+            router.push("/admin/campanas/gestion");
+            router.refresh();
+        } catch (error) {
+            setMessage(error instanceof Error ? error.message : "No se pudo eliminar la campaña");
+            setWorking(false);
+        }
+    };
+
     const copyUrl = async () => {
         await navigator.clipboard.writeText(publicUrl);
         setCopied(true);
@@ -242,6 +269,9 @@ export function CampaignDetailManagement({
                     <button type="button" className="btn btn-secondary" onClick={() => void toggleArchive()} disabled={working}>
                         {campaign.archived_at ? <ArchiveRestore size={18} /> : <Archive size={18} />}
                         {campaign.archived_at ? "Restaurar" : "Archivar"}
+                    </button>
+                    <button type="button" className="btn btn-danger" onClick={() => void deleteCampaign()} disabled={working}>
+                        <Trash2 size={18} /> Eliminar definitivamente
                     </button>
                 </div>
             </div>

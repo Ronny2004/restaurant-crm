@@ -142,6 +142,16 @@ export async function setCampaignArchived(id: string, archived: boolean) {
     return data as Campaign | null;
 }
 
+export async function deleteCampaignPermanently(id: string, actorId: string) {
+    const admin = createAdminClient();
+    const { data, error } = await admin.rpc("delete_campaign_admin", {
+        p_campaign_id: id,
+        p_actor_id: actorId,
+    });
+    if (error) throw new Error(error.message);
+    return data;
+}
+
 export async function getPublicCampaign(slug: string) {
     const admin = createAdminClient();
     const [{ data: campaign, error }, { data: products, error: productError }] =

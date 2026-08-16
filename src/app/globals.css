@@ -2623,6 +2623,19 @@ textarea:focus {
   line-height: 1.45;
 }
 
+.table-qr-table-actions,
+.table-qr-code-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.table-qr-code-actions .btn,
+.table-qr-table-actions .btn {
+  justify-content: center;
+}
+
 @media (max-width: 1050px) {
   .campaign-ai-fields {
     grid-template-columns: 1fr 1fr;
@@ -2641,6 +2654,16 @@ textarea:focus {
 
   .campaign-module-option {
     min-height: 280px;
+  }
+
+  .table-qr-table-actions,
+  .table-qr-code-actions {
+    width: 100%;
+  }
+
+  .table-qr-table-actions > *,
+  .table-qr-code-actions > * {
+    flex: 1;
   }
 
   .campaign-ai-panel {
