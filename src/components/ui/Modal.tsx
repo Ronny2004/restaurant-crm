@@ -7,9 +7,16 @@ interface ModalProps {
     onClose: () => void;
     title: string;
     children: React.ReactNode;
+    closeOnBackdrop?: boolean;
 }
 
-export function Modal({ isOpen, onClose, title, children }: ModalProps) {
+export function Modal({
+    isOpen,
+    onClose,
+    title,
+    children,
+    closeOnBackdrop = true,
+}: ModalProps) {
     if (!isOpen) return null;
 
     return (
@@ -27,7 +34,7 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
             backdropFilter: "blur(4px)",
             opacity: 1,
             padding: "1rem"
-        }} onClick={onClose}>
+        }} onClick={closeOnBackdrop ? onClose : undefined}>
             <div
                 className="glass-panel"
                 style={{
@@ -41,7 +48,7 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
             >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
                     <h3 style={{ fontSize: "1.25rem", margin: 0, fontWeight: 600 }}>{title}</h3>
-                    <button onClick={onClose} style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer" }}>
+                    <button type="button" onClick={onClose} style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer" }}>
                         <X size={20} />
                     </button>
                 </div>

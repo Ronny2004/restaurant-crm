@@ -376,6 +376,7 @@ export function UsersManagement({ currentUserId }: { currentUserId: string }) {
                 isOpen={createOpen}
                 onClose={() => !working && setCreateOpen(false)}
                 title="Crear usuario"
+                closeOnBackdrop={false}
             >
                 <form className="admin-user-form" onSubmit={createUser}>
                     <label>Nombre completo
@@ -473,6 +474,7 @@ export function UsersManagement({ currentUserId }: { currentUserId: string }) {
                 isOpen={Boolean(editing)}
                 onClose={() => !working && setEditing(null)}
                 title="Editar usuario"
+                closeOnBackdrop={false}
             >
                 {editing && (
                     <form className="admin-user-form" onSubmit={updateUser}>
@@ -542,6 +544,7 @@ export function UsersManagement({ currentUserId }: { currentUserId: string }) {
                 isOpen={Boolean(emailUser)}
                 onClose={() => !working && setEmailUser(null)}
                 title="Cambiar correo"
+                closeOnBackdrop={false}
             >
                 <form className="admin-user-form" onSubmit={updateEmail}>
                     <p className="auth-help">
@@ -572,6 +575,7 @@ export function UsersManagement({ currentUserId }: { currentUserId: string }) {
                 title={statusUser?.account_status === "active"
                     ? "Desactivar usuario"
                     : "Activar usuario"}
+                closeOnBackdrop={false}
             >
                 {statusUser && (
                     <div className="admin-user-form">
@@ -612,6 +616,7 @@ export function UsersManagement({ currentUserId }: { currentUserId: string }) {
                 isOpen={Boolean(emergencyUser)}
                 onClose={() => !working && setEmergencyUser(null)}
                 title="Código de emergencia"
+                closeOnBackdrop={false}
             >
                 {emergencyUser && (
                     <div className="emergency-code-dialog">
@@ -648,6 +653,7 @@ export function UsersManagement({ currentUserId }: { currentUserId: string }) {
                 isOpen={Boolean(deletingUser)}
                 onClose={() => !working && setDeletingUser(null)}
                 title="Eliminar usuario"
+                closeOnBackdrop={false}
             >
                 {deletingUser && (
                     <div className="admin-user-form">
