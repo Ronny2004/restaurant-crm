@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireActiveProfile } from "@/lib/auth/authorization";
 import {
+    deleteCampaignPermanently,
     getCampaignDetail,
     updateCampaign,
 } from "@/lib/campaigns/service";
@@ -30,6 +31,22 @@ export async function GET(_request: NextRequest, context: RouteContext) {
         return jsonError(
             error instanceof Error ? error.message : "No se pudo consultar la campaña",
             500,
+        );
+    }
+}
+
+export async function DELETE(_request: NextRequest, context: RouteContext) {
+    const actor = await requireActiveProfile(["admin"]);
+    if (!actor) return jsonError("No autorizado", 401);
+
+    try {
+        const { campaignId } = await context.params;
+        const result = await deleteCampaignPermanently(campaignId, actor.id);
+        return NextResponse.json({ ok: true, result });
+    } catch (error) {
+        return jsonError(
+            error instanceof Error ? error.message : "No se pudo eliminar la campaña",
+            409,
         );
     }
 }

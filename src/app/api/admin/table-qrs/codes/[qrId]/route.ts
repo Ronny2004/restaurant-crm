@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireActiveProfile } from "@/lib/auth/authorization";
 import { jsonError, safeJson } from "@/lib/auth/responses";
-import { updateTableQr } from "@/lib/table-qrs/service";
+import { deleteTableQr, updateTableQr } from "@/lib/table-qrs/service";
 import { parseTableQrUpdate } from "@/lib/table-qrs/validation";
 
 export const runtime = "nodejs";
@@ -23,6 +23,22 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     } catch (error) {
         return jsonError(
             error instanceof Error ? error.message : "No se pudo actualizar el QR",
+            409,
+        );
+    }
+}
+
+export async function DELETE(_request: NextRequest, context: RouteContext) {
+    const actor = await requireActiveProfile(["admin"]);
+    if (!actor) return jsonError("No autorizado", 401);
+
+    try {
+        const { qrId } = await context.params;
+        const result = await deleteTableQr(qrId, actor.id);
+        return NextResponse.json({ ok: true, result });
+    } catch (error) {
+        return jsonError(
+            error instanceof Error ? error.message : "No se pudo eliminar el QR",
             409,
         );
     }

@@ -192,3 +192,23 @@ export async function recordTableQrScan(qrCodeId: string, visitorHash: string) {
     });
     if (error) throw new Error(error.message);
 }
+
+export async function deleteTableQr(id: string, actorId: string) {
+    const admin = createAdminClient();
+    const { data, error } = await admin.rpc("delete_table_qr_admin", {
+        p_qr_id: id,
+        p_actor_id: actorId,
+    });
+    if (error) throw new Error(error.message);
+    return data;
+}
+
+export async function deleteRestaurantTable(id: string, actorId: string) {
+    const admin = createAdminClient();
+    const { data, error } = await admin.rpc("delete_restaurant_table_admin", {
+        p_table_id: id,
+        p_actor_id: actorId,
+    });
+    if (error) throw new Error(error.message);
+    return data;
+}
