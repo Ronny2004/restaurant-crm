@@ -42,7 +42,11 @@ export function Header() {
     if (pathname.includes('/admin')) {
         title = "Administrador";
         if (pathname.includes('/campanas/mesas')) title = "Configuración de Mesas";
-        else if (pathname.includes('/campanas')) title = "Creación de Campañas";
+        else if (pathname.includes('/campanas/') && pathname.includes('/analisis')) title = "Análisis de Campaña";
+        else if (pathname.includes('/campanas/') && pathname.includes('/sorteo')) title = "Sorteo de Campaña";
+        else if (pathname.includes('/campanas/gestion')) title = "Gestión de Campañas";
+        else if (pathname.match(/^\/admin\/campanas\/[^/]+$/)) title = "Detalle de Campaña";
+        else if (pathname.includes('/campanas')) title = "Campañas";
         if (pathname.includes('/ventastotales')) title = "Historial de Ventas";
         if (pathname.includes('/pedidostotales')) title = "Historial de Pedidos";
         showBackButton = isAdmin; 

@@ -1,4 +1,5 @@
 import { ExternalLink, Globe2, MessageCircle } from "lucide-react";
+import { CAMPAIGN_DEFAULT_LINKS } from "@/lib/campaigns/public-links";
 
 const URL_PATTERN = /https?:\/\/[^\s<>"']+/gi;
 
@@ -19,9 +20,12 @@ function isWhatsApp(url: URL) {
 export function RichCampaignText({ text }: { text: string }) {
     const matches = Array.from(text.matchAll(URL_PATTERN));
     const links = Array.from(new Map(
-        matches
+        [
+            ...matches
             .map((match) => safeUrl(match[0]))
-            .filter((url): url is URL => Boolean(url))
+            .filter((url): url is URL => Boolean(url)),
+            ...CAMPAIGN_DEFAULT_LINKS.map((link) => new URL(link)),
+        ]
             .map((url) => [url.toString(), url]),
     ).values());
 
@@ -52,30 +56,28 @@ export function RichCampaignText({ text }: { text: string }) {
     return (
         <div className="campaign-rich-description">
             <p>{parts}</p>
-            {links.length > 0 && (
-                <div className="campaign-rich-links">
-                    {links.map((url) => {
-                        const whatsapp = isWhatsApp(url);
-                        const Icon = whatsapp ? MessageCircle : Globe2;
-                        return (
-                            <a
-                                key={url.toString()}
-                                href={url.toString()}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                aria-label={whatsapp ? "Abrir WhatsApp" : "Visitar sitio web"}
-                            >
-                                <span><Icon size={21} /></span>
-                                <span>
-                                    <small>{whatsapp ? "Únete por WhatsApp" : "Visita nuestro sitio"}</small>
-                                    <strong>{url.hostname.replace(/^www\./, "")}</strong>
-                                </span>
-                                <ExternalLink size={17} />
-                            </a>
-                        );
-                    })}
-                </div>
-            )}
+            <div className="campaign-rich-links">
+                {links.map((url) => {
+                    const whatsapp = isWhatsApp(url);
+                    const Icon = whatsapp ? MessageCircle : Globe2;
+                    return (
+                        <a
+                            key={url.toString()}
+                            href={url.toString()}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label={whatsapp ? "Abrir WhatsApp" : "Visitar sitio web"}
+                        >
+                            <span><Icon size={21} /></span>
+                            <span>
+                                <small>{whatsapp ? "Únete por WhatsApp" : "Visita nuestro sitio"}</small>
+                                <strong>{url.hostname.replace(/^www\./, "")}</strong>
+                            </span>
+                            <ExternalLink size={17} />
+                        </a>
+                    );
+                })}
+            </div>
         </div>
     );
 }

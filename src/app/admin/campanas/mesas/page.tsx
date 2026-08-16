@@ -22,7 +22,7 @@ export default async function TableQrConfigurationPage() {
                         </p>
                     </div>
                     <Link className="btn btn-secondary" href="/admin/campanas">
-                        <ArrowLeft size={18} /> Volver a campañas
+                        <ArrowLeft size={18} /> Volver a módulos
                     </Link>
                 </div>
                 <TableQrManagement />
