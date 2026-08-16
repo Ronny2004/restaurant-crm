@@ -1627,6 +1627,17 @@ textarea:focus {
   border-color: var(--primary);
 }
 
+.user-actions .user-delete-action {
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.32);
+}
+
+.user-actions .user-delete-action:hover:not(:disabled) {
+  color: white;
+  border-color: var(--danger);
+  background: var(--danger);
+}
+
 .user-actions button:disabled {
   opacity: 0.3;
   cursor: not-allowed;
