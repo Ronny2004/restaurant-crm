@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { recordAuthEvent } from "@/lib/auth/audit";
+import { createAuthChallenge } from "@/lib/auth/challenges";
+import { getCredentials, toCredentialStatus } from "@/lib/auth/credentials";
 import { normalizeIdentifier } from "@/lib/auth/crypto";
 import { getProfileById } from "@/lib/auth/profiles";
 import { consumeRateLimit, clearRateLimit } from "@/lib/auth/rate-limit";
@@ -56,6 +58,22 @@ export async function POST(request: NextRequest) {
             failureCode: "invalid_credentials",
         });
         return genericCredentialsError();
+    }
+
+    const credential = await getCredentials(profile.id);
+    const status = toCredentialStatus(credential);
+    if (status.mustChangePassword) {
+        await clearServerSession();
+        await createAuthChallenge(
+            profile.id,
+            "initial_password",
+            context,
+        );
+        return NextResponse.json({
+            ok: true,
+            challengeRequired: "password",
+            next: "/actualizar-credencial",
+        });
     }
 
     await Promise.all([

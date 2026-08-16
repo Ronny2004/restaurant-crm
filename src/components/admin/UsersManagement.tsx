@@ -10,12 +10,12 @@ import {
     Power,
     RefreshCw,
     Search,
+    Send,
     ShieldCheck,
     Trash2,
     UserRound,
 } from "lucide-react";
 import { AuthMessage } from "@/components/auth/AuthMessage";
-import { PinInput } from "@/components/auth/PinInput";
 import { Modal } from "@/components/ui/Modal";
 import type { ManagedUser, UserRole } from "@/types/auth";
 
@@ -28,20 +28,20 @@ const ROLE_LABELS: Record<UserRole, string> = {
 
 type CreateForm = {
     fullName: string;
-    username: string;
     email: string;
     role: UserRole;
+};
+
+type TemporaryCredentials = {
+    username: string;
     password: string;
-    pin: string;
+    pin?: string | null;
 };
 
 const EMPTY_CREATE: CreateForm = {
     fullName: "",
-    username: "",
     email: "",
     role: "waiter",
-    password: "",
-    pin: "",
 };
 
 export function UsersManagement({ currentUserId }: { currentUserId: string }) {
@@ -60,6 +60,8 @@ export function UsersManagement({ currentUserId }: { currentUserId: string }) {
     const [emergencyUser, setEmergencyUser] = useState<ManagedUser | null>(null);
     const [emergencyCode, setEmergencyCode] = useState("");
     const [deletingUser, setDeletingUser] = useState<ManagedUser | null>(null);
+    const [accessUser, setAccessUser] = useState<ManagedUser | null>(null);
+    const [manualCredentials, setManualCredentials] = useState<TemporaryCredentials | null>(null);
 
     const loadUsers = useCallback(async (query = "") => {
         setLoading(true);
@@ -107,6 +109,8 @@ export function UsersManagement({ currentUserId }: { currentUserId: string }) {
                 ok: boolean;
                 message?: string;
                 code?: string;
+                delivered?: boolean;
+                credentials?: TemporaryCredentials;
             };
             if (!data.ok) throw new Error(data.message || "Operación rechazada");
             return data;
@@ -118,13 +122,13 @@ export function UsersManagement({ currentUserId }: { currentUserId: string }) {
     const createUser = async (event: React.FormEvent) => {
         event.preventDefault();
         try {
-            await request("/api/admin/users", {
+            const data = await request("/api/admin/users", {
                 method: "POST",
                 body: JSON.stringify(createForm),
             });
             setCreateOpen(false);
             setCreateForm(EMPTY_CREATE);
-            setMessage("Usuario creado correctamente");
+            setMessage(data.message || "Usuario creado correctamente y credenciales enviadas");
             await loadUsers(search);
         } catch (error) {
             setMessage(error instanceof Error ? error.message : "No se pudo crear");
@@ -205,6 +209,28 @@ export function UsersManagement({ currentUserId }: { currentUserId: string }) {
         } catch (error) {
             setMessage(error instanceof Error ? error.message : "No se pudo generar el código");
             setEmergencyUser(null);
+        }
+    };
+
+    const regenerateAccess = async () => {
+        if (!accessUser) return;
+        try {
+            const data = await request(
+                `/api/admin/users/${accessUser.id}/credentials`,
+                { method: "POST" },
+            );
+
+            if (data.delivered) {
+                setAccessUser(null);
+                setManualCredentials(null);
+                setMessage("Credenciales regeneradas correctamente y enviadas por correo");
+            } else if (data.credentials) {
+                setManualCredentials(data.credentials);
+                setMessage(data.message || "El correo falló; entrega las credenciales manualmente");
+            }
+            await loadUsers(search);
+        } catch (error) {
+            setMessage(error instanceof Error ? error.message : "No se pudo regenerar el acceso");
         }
     };
 
@@ -295,7 +321,11 @@ export function UsersManagement({ currentUserId }: { currentUserId: string }) {
                                     </td>
                                     <td>
                                         {user.role === "admin" ? (
-                                            <small>Sin expiración</small>
+                                            <small>
+                                                {user.credentials.mustChangePassword
+                                                    ? "Cambio inicial pendiente"
+                                                    : "Sin expiración"}
+                                            </small>
                                         ) : (
                                             <div className="credential-summary">
                                                 <small>
@@ -304,7 +334,13 @@ export function UsersManagement({ currentUserId }: { currentUserId: string }) {
                                                         : "sin configurar"}
                                                 </small>
                                                 <small>
-                                                    Clave: {user.credentials.passwordDaysRemaining ?? "—"} días
+                                                    Clave: {user.credentials.mustChangePassword
+                                                        ? "cambio pendiente"
+                                                        : user.credentials.passwordDaysRemaining !== null
+                                                            ? `${user.credentials.passwordDaysRemaining} días`
+                                                            : user.credentials.passwordConfigured
+                                                                ? "sin expiración"
+                                                                : "sin fecha registrada"}
                                                 </small>
                                             </div>
                                         )}
@@ -337,6 +373,19 @@ export function UsersManagement({ currentUserId }: { currentUserId: string }) {
                                                     <KeyRound size={17} />
                                                 </button>
                                             )}
+                                            <button
+                                                title="Regenerar y enviar credenciales"
+                                                disabled={
+                                                    user.id === currentUserId
+                                                    || user.account_status !== "active"
+                                                }
+                                                onClick={() => {
+                                                    setAccessUser(user);
+                                                    setManualCredentials(null);
+                                                }}
+                                            >
+                                                <Send size={17} />
+                                            </button>
                                             <button
                                                 title={
                                                     user.account_status === "active"
@@ -390,34 +439,19 @@ export function UsersManagement({ currentUserId }: { currentUserId: string }) {
                             })}
                         />
                     </label>
-                    <div className="form-row">
-                        <label>Usuario
-                            <input
-                                required
-                                value={createForm.username}
-                                onChange={(event) => setCreateForm({
-                                    ...createForm,
-                                    username: event.target.value,
-                                })}
-                            />
-                        </label>
-                        <label>Rol
-                            <select
-                                value={createForm.role}
-                                onChange={(event) => setCreateForm({
-                                    ...createForm,
-                                    role: event.target.value as UserRole,
-                                    pin: event.target.value === "admin"
-                                        ? ""
-                                        : createForm.pin,
-                                })}
-                            >
-                                {Object.entries(ROLE_LABELS).map(([value, label]) => (
-                                    <option key={value} value={value}>{label}</option>
-                                ))}
-                            </select>
-                        </label>
-                    </div>
+                    <label>Rol
+                        <select
+                            value={createForm.role}
+                            onChange={(event) => setCreateForm({
+                                ...createForm,
+                                role: event.target.value as UserRole,
+                            })}
+                        >
+                            {Object.entries(ROLE_LABELS).map(([value, label]) => (
+                                <option key={value} value={value}>{label}</option>
+                            ))}
+                        </select>
+                    </label>
                     <label>Correo
                         <input
                             required
@@ -429,32 +463,11 @@ export function UsersManagement({ currentUserId }: { currentUserId: string }) {
                             })}
                         />
                     </label>
-                    <label>Contraseña temporal
-                        <input
-                            required
-                            type="password"
-                            minLength={10}
-                            value={createForm.password}
-                            onChange={(event) => setCreateForm({
-                                ...createForm,
-                                password: event.target.value,
-                            })}
-                        />
-                    </label>
                     <p className="auth-help">
-                        Mínimo 10 caracteres, mayúscula, minúscula y número.
+                        El sistema generará un usuario, una contraseña temporal
+                        {createForm.role === "admin" ? "" : " y un PIN temporal"}.
+                        Se enviarán al correo y deberán cambiarse durante el primer ingreso.
                     </p>
-                    {createForm.role !== "admin" && (
-                        <label className="pin-label">PIN temporal
-                            <PinInput
-                                value={createForm.pin}
-                                onChange={(pin) => setCreateForm({
-                                    ...createForm,
-                                    pin,
-                                })}
-                            />
-                        </label>
-                    )}
                     <div className="modal-actions">
                         <button
                             type="button"
@@ -705,6 +718,77 @@ export function UsersManagement({ currentUserId }: { currentUserId: string }) {
                                 Eliminar definitivamente
                             </button>
                         </div>
+                    </div>
+                )}
+            </Modal>
+
+            <Modal
+                isOpen={Boolean(accessUser)}
+                onClose={() => {
+                    if (!working) {
+                        setAccessUser(null);
+                        setManualCredentials(null);
+                    }
+                }}
+                title="Regenerar acceso"
+                closeOnBackdrop={false}
+                showCloseButton={false}
+            >
+                {accessUser && (
+                    <div className="admin-user-form">
+                        {!manualCredentials ? (
+                            <>
+                                <p>
+                                    Se reemplazarán las credenciales de
+                                    <strong> {accessUser.full_name || accessUser.username}</strong>
+                                    y se cerrarán sus sesiones actuales.
+                                </p>
+                                <p className="auth-help">
+                                    Las nuevas credenciales serán temporales y se enviarán a {accessUser.email}.
+                                </p>
+                                <div className="modal-actions">
+                                    <button
+                                        type="button"
+                                        className="btn btn-secondary"
+                                        onClick={() => setAccessUser(null)}
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="btn btn-primary"
+                                        disabled={working}
+                                        onClick={() => void regenerateAccess()}
+                                    >
+                                        {working ? <Loader2 className="animate-spin" size={18} /> : <Send size={18} />}
+                                        Regenerar y enviar
+                                    </button>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <p className="auth-help">
+                                    El correo no pudo enviarse. Estas credenciales se mostrarán una sola vez.
+                                </p>
+                                <div className="temporary-access-summary">
+                                    <span><strong>Usuario</strong><code>{manualCredentials.username}</code></span>
+                                    <span><strong>Contraseña</strong><code>{manualCredentials.password}</code></span>
+                                    {manualCredentials.pin && (
+                                        <span><strong>PIN</strong><code>{manualCredentials.pin}</code></span>
+                                    )}
+                                </div>
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary"
+                                    onClick={() => {
+                                        setAccessUser(null);
+                                        setManualCredentials(null);
+                                    }}
+                                >
+                                    Cerrar
+                                </button>
+                            </>
+                        )}
                     </div>
                 )}
             </Modal>

@@ -20,6 +20,81 @@ function createTransport() {
     });
 }
 
+function escapeHtml(value: string) {
+    return value.replace(/[&<>'"]/g, (character) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "'": "&#39;",
+        '"': "&quot;",
+    })[character] || character);
+}
+
+type AccessCredentialsEmail = {
+    email: string;
+    fullName: string;
+    username: string;
+    password: string;
+    pin?: string | null;
+    regenerated?: boolean;
+};
+
+export async function sendAccessCredentialsEmail(
+    input: AccessCredentialsEmail,
+) {
+    const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+    if (!from) {
+        throw new Error("Falta SMTP_FROM o SMTP_USER");
+    }
+
+    const title = input.regenerated
+        ? "Tus accesos fueron regenerados"
+        : "Bienvenido al sistema de Delicias Morán";
+    const pinLine = input.pin ? `PIN temporal: ${input.pin}` : null;
+
+    try {
+        const info = await createTransport().sendMail({
+            from: `Delicias Morán <${from}>`,
+            to: input.email,
+            subject: title,
+            text: [
+                `Hola ${input.fullName},`,
+                "",
+                input.regenerated
+                    ? "Un administrador regeneró tus credenciales de acceso."
+                    : "Se creó tu cuenta de acceso al sistema interno.",
+                "",
+                `Usuario: ${input.username}`,
+                `Contraseña temporal: ${input.password}`,
+                pinLine,
+                "",
+                "Debes cambiar las credenciales temporales durante tu próximo ingreso.",
+                "No compartas este correo ni tus credenciales.",
+            ].filter(Boolean).join("\n"),
+            html: `
+                <div style="font-family:Arial,sans-serif;max-width:580px;margin:auto;color:#172033">
+                    <h1 style="font-size:24px">${escapeHtml(title)}</h1>
+                    <p>Hola <strong>${escapeHtml(input.fullName)}</strong>,</p>
+                    <p>${input.regenerated
+                        ? "Un administrador regeneró tus credenciales de acceso."
+                        : "Se creó tu cuenta de acceso al sistema interno."}</p>
+                    <div style="padding:18px;border-radius:12px;background:#f8fafc;border:1px solid #e2e8f0">
+                        <p><strong>Usuario:</strong> ${escapeHtml(input.username)}</p>
+                        <p><strong>Contraseña temporal:</strong> ${escapeHtml(input.password)}</p>
+                        ${input.pin ? `<p><strong>PIN temporal:</strong> ${escapeHtml(input.pin)}</p>` : ""}
+                    </div>
+                    <p>Debes cambiar las credenciales temporales durante tu próximo ingreso.</p>
+                    <p style="color:#64748b">No compartas este correo ni tus credenciales.</p>
+                </div>
+            `,
+        });
+        console.log("Correo de acceso enviado. ID:", info.messageId);
+    } catch (error) {
+        console.error("Error enviando credenciales por SMTP:", error);
+        throw new Error("No se pudo enviar el correo con las credenciales");
+    }
+}
+
 export async function sendPinRecoveryEmail(email: string, code: string) {
     const from = process.env.SMTP_FROM || process.env.SMTP_USER;
 

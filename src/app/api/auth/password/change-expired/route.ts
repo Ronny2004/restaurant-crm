@@ -47,7 +47,6 @@ export async function POST(request: NextRequest) {
     if (
         !profile
         || profile.account_status !== "active"
-        || profile.role === "admin"
     ) {
         return jsonError("La cuenta no está disponible", 403);
     }
@@ -60,7 +59,7 @@ export async function POST(request: NextRequest) {
         return jsonError(`No se pudo cambiar la contraseña: ${error.message}`);
     }
 
-    await markPasswordChanged(profile.id);
+    await markPasswordChanged(profile.id, profile.role === "admin");
     await createSessionForEmail(profile.email);
     await consumeAuthChallenge(challenge.id);
     await recordAuthEvent(context, {

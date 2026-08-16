@@ -24,6 +24,7 @@ export type AppProfile = {
 
 export type CredentialStatus = {
     pinConfigured: boolean;
+    passwordConfigured: boolean;
     mustChangePin: boolean;
     mustChangePassword: boolean;
     pinExpiresAt: string | null;

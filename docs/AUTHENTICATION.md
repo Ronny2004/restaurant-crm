@@ -30,13 +30,21 @@ minutos. Al excederlos, bloquea esa combinación de IP e identificador durante
 
 La página `/admin/usuarios` permite:
 
-- Crear usuarios con contraseña temporal y PIN temporal para roles operativos.
+- Crear usuarios generando automáticamente usuario, contraseña temporal y PIN
+  temporal para roles operativos, y enviar esas credenciales al correo registrado.
 - Actualizar nombre, usuario, teléfono y rol.
 - Cambiar el correo en Supabase Auth y sincronizarlo con `profiles`.
 - Activar y desactivar cuentas.
+- Regenerar el acceso de una cuenta activa. Esto cierra sus sesiones, reemplaza la
+  contraseña y el PIN, exige cambiarlos en el siguiente ingreso y envía las nuevas
+  credenciales por correo. Si el correo falla, se entregan una sola vez al
+  administrador para comunicarlas por un canal seguro.
 - Generar códigos de emergencia de un solo uso.
+- Eliminar usuarios, excepto la propia cuenta administrativa en uso.
 
-No existe endpoint `DELETE` ni restablecimiento administrativo de contraseña.
+Las contraseñas existentes nunca se muestran ni se recuperan. La regeneración
+administrativa siempre crea credenciales temporales nuevas y queda registrada en
+la auditoría.
 
 La eliminación interna usada durante la creación no es una función del panel:
 actúa exclusivamente como compensación si falla el aprovisionamiento de una
@@ -69,6 +77,8 @@ interfaz web continúa en `http://127.0.0.1:54324`. Después de cambiar
   challenges, códigos temporales, rate limiting y auditoría.
 - `20260725234000_active_account_rls.sql`: bloquea inmediatamente el acceso
   operativo de cuentas desactivadas y normaliza unicidad de correo/usuario.
+- `20260816213000_user_credential_delivery.sql`: habilita la revocación segura de
+  sesiones durante la regeneración administrativa y amplía la auditoría.
 
 Primero deben probarse localmente. Para producción se aplican mediante el flujo
 normal de migraciones de Supabase, después de respaldar el esquema y los datos.
@@ -77,5 +87,6 @@ normal de migraciones de Supabase, después de respaldar el esquema y los datos.
 
 - `supabase/tests/authentication_security.sql`
 - `supabase/tests/operational_security.sql`
+- `supabase/tests/user_credential_delivery.sql`
 
 Ambas pruebas se ejecutan dentro de una transacción y terminan con `ROLLBACK`.

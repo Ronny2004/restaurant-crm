@@ -64,6 +64,7 @@ type ManagementAudit = {
         | "role_changed"
         | "email_changed"
         | "emergency_code_created"
+        | "credentials_regenerated"
         | "deleted";
     actor: {
         id: string;

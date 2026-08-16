@@ -58,9 +58,7 @@ export async function PATCH(request: NextRequest) {
         return jsonError(`No se pudo cambiar la contraseña: ${updateError.message}`);
     }
 
-    if (profile.role !== "admin") {
-        await markPasswordChanged(profile.id);
-    }
+    await markPasswordChanged(profile.id, profile.role === "admin");
 
     await recordAuthEvent(context, {
         userId: profile.id,
