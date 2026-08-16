@@ -8,6 +8,7 @@ interface ModalProps {
     title: string;
     children: React.ReactNode;
     closeOnBackdrop?: boolean;
+    showCloseButton?: boolean;
 }
 
 export function Modal({
@@ -16,6 +17,7 @@ export function Modal({
     title,
     children,
     closeOnBackdrop = true,
+    showCloseButton = true,
 }: ModalProps) {
     if (!isOpen) return null;
 
@@ -48,9 +50,11 @@ export function Modal({
             >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
                     <h3 style={{ fontSize: "1.25rem", margin: 0, fontWeight: 600 }}>{title}</h3>
-                    <button type="button" onClick={onClose} style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer" }}>
-                        <X size={20} />
-                    </button>
+                    {showCloseButton && (
+                        <button type="button" onClick={onClose} style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer" }}>
+                            <X size={20} />
+                        </button>
+                    )}
                 </div>
                 {children}
             </div>

@@ -377,6 +377,7 @@ export function UsersManagement({ currentUserId }: { currentUserId: string }) {
                 onClose={() => !working && setCreateOpen(false)}
                 title="Crear usuario"
                 closeOnBackdrop={false}
+                showCloseButton={false}
             >
                 <form className="admin-user-form" onSubmit={createUser}>
                     <label>Nombre completo
@@ -475,6 +476,7 @@ export function UsersManagement({ currentUserId }: { currentUserId: string }) {
                 onClose={() => !working && setEditing(null)}
                 title="Editar usuario"
                 closeOnBackdrop={false}
+                showCloseButton={false}
             >
                 {editing && (
                     <form className="admin-user-form" onSubmit={updateUser}>
@@ -545,6 +547,7 @@ export function UsersManagement({ currentUserId }: { currentUserId: string }) {
                 onClose={() => !working && setEmailUser(null)}
                 title="Cambiar correo"
                 closeOnBackdrop={false}
+                showCloseButton={false}
             >
                 <form className="admin-user-form" onSubmit={updateEmail}>
                     <p className="auth-help">
@@ -576,6 +579,7 @@ export function UsersManagement({ currentUserId }: { currentUserId: string }) {
                     ? "Desactivar usuario"
                     : "Activar usuario"}
                 closeOnBackdrop={false}
+                showCloseButton={false}
             >
                 {statusUser && (
                     <div className="admin-user-form">
@@ -617,6 +621,7 @@ export function UsersManagement({ currentUserId }: { currentUserId: string }) {
                 onClose={() => !working && setEmergencyUser(null)}
                 title="Código de emergencia"
                 closeOnBackdrop={false}
+                showCloseButton={false}
             >
                 {emergencyUser && (
                     <div className="emergency-code-dialog">
@@ -627,14 +632,24 @@ export function UsersManagement({ currentUserId }: { currentUserId: string }) {
                                     El código será válido durante 10 minutos y
                                     podrá utilizarse una sola vez.
                                 </p>
-                                <button
-                                    className="btn btn-primary"
-                                    disabled={working}
-                                    onClick={generateEmergencyCode}
-                                >
-                                    {working ? <Loader2 className="animate-spin" size={18} /> : <RefreshCw size={18} />}
-                                    Generar código
-                                </button>
+                                <div className="modal-actions">
+                                    <button
+                                        type="button"
+                                        className="btn btn-secondary"
+                                        onClick={() => setEmergencyUser(null)}
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="btn btn-primary"
+                                        disabled={working}
+                                        onClick={generateEmergencyCode}
+                                    >
+                                        {working ? <Loader2 className="animate-spin" size={18} /> : <RefreshCw size={18} />}
+                                        Generar código
+                                    </button>
+                                </div>
                             </>
                         ) : (
                             <>
@@ -643,6 +658,13 @@ export function UsersManagement({ currentUserId }: { currentUserId: string }) {
                                 <p className="auth-help">
                                     No se volverá a mostrar cuando cierres esta ventana.
                                 </p>
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary"
+                                    onClick={() => setEmergencyUser(null)}
+                                >
+                                    Cerrar
+                                </button>
                             </>
                         )}
                     </div>
@@ -654,6 +676,7 @@ export function UsersManagement({ currentUserId }: { currentUserId: string }) {
                 onClose={() => !working && setDeletingUser(null)}
                 title="Eliminar usuario"
                 closeOnBackdrop={false}
+                showCloseButton={false}
             >
                 {deletingUser && (
                     <div className="admin-user-form">
