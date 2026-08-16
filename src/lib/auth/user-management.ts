@@ -1,6 +1,12 @@
 import "server-only";
 
-import { setUserPin, toCredentialStatus } from "@/lib/auth/credentials";
+import { randomBytes } from "node:crypto";
+import {
+    generateAvailablePin,
+    markTemporaryPassword,
+    setUserPin,
+    toCredentialStatus,
+} from "@/lib/auth/credentials";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
     ACCOUNT_STATUSES,
@@ -42,6 +48,59 @@ export function normalizeUsername(value: unknown) {
     }
     const username = value.trim().toLowerCase();
     return /^[a-z0-9._-]{3,40}$/.test(username) ? username : null;
+}
+
+export function generateTemporaryPassword() {
+    return `Dm7!${randomBytes(12).toString("base64url")}`;
+}
+
+function usernameBase(fullName: string) {
+    const normalized = fullName
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+
+    const base = normalized.length > 1
+        ? `${normalized[0]}.${normalized.at(-1)}`
+        : normalized[0] || "usuario";
+    return base.slice(0, 34);
+}
+
+export async function generateAvailableUsername(fullName: string) {
+    const admin = createAdminClient();
+    const base = usernameBase(fullName);
+
+    for (let suffix = 0; suffix < 100; suffix += 1) {
+        const candidate = suffix === 0 ? base : `${base}${suffix + 1}`;
+        const { data, error } = await admin
+            .from("profiles")
+            .select("id")
+            .eq("username", candidate)
+            .maybeSingle();
+
+        if (error) {
+            throw new Error(`No se pudo generar el usuario: ${error.message}`);
+        }
+        if (!data) return candidate;
+    }
+
+    throw new Error("No se pudo generar un nombre de usuario disponible");
+}
+
+export async function generateManagedAccess(
+    fullName: string,
+    role: UserRole,
+    userId?: string,
+) {
+    return {
+        username: userId ? null : await generateAvailableUsername(fullName),
+        password: generateTemporaryPassword(),
+        pin: role === "admin" ? null : await generateAvailablePin(userId),
+    };
 }
 
 export async function listManagedUsers(search?: string) {
@@ -152,6 +211,9 @@ export async function createManagedUser(input: CreateUserInput) {
             );
         }
 
+
+        await markTemporaryPassword(userId, input.role === "admin");
+
         return profile as AppProfile;
     } catch (provisioningError) {
         // La cuenta aún no fue entregada. Una creación fallida se revierte para
@@ -174,6 +236,72 @@ export async function createManagedUser(input: CreateUserInput) {
         }
         throw provisioningError;
     }
+}
+
+export async function rollbackManagedUserCreation(userId: string) {
+    const admin = createAdminClient();
+    const { error } = await admin.auth.admin.deleteUser(userId, false);
+    if (!error) return;
+
+    await admin.auth.admin.updateUserById(userId, {
+        ban_duration: "876000h",
+    });
+    throw new Error(
+        `No se pudo revertir la cuenta después del fallo de correo: ${error.message}`,
+    );
+}
+
+export async function regenerateManagedUserAccess(
+    userId: string,
+    actorId: string,
+) {
+    const admin = createAdminClient();
+    const { data: profile, error: profileError } = await admin
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single();
+
+    if (profileError || !profile) {
+        throw new Error("Usuario no encontrado");
+    }
+
+    if (profile.account_status !== "active") {
+        throw new Error("Activa el usuario antes de regenerar su acceso");
+    }
+
+    const access = await generateManagedAccess(
+        profile.full_name || profile.username,
+        profile.role,
+        userId,
+    );
+
+    const { error: revokeError } = await admin.rpc(
+        "revoke_managed_user_sessions",
+        { p_user_id: userId, p_actor_id: actorId },
+    );
+    if (revokeError) {
+        throw new Error(`No se pudieron cerrar las sesiones: ${revokeError.message}`);
+    }
+
+    const { error: passwordError } = await admin.auth.admin.updateUserById(
+        userId,
+        { password: access.password },
+    );
+    if (passwordError) {
+        throw new Error(`No se pudo regenerar la contraseña: ${passwordError.message}`);
+    }
+
+    if (profile.role !== "admin" && access.pin) {
+        await setUserPin(userId, access.pin, true);
+    }
+    await markTemporaryPassword(userId, profile.role === "admin");
+
+    return {
+        profile: profile as AppProfile,
+        password: access.password,
+        pin: access.pin,
+    };
 }
 
 type UpdateUserInput = {

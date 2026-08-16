@@ -2,6 +2,7 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
+    generateSixDigitCode,
     hashSecret,
     isWeakPin,
     keyedLookup,
@@ -35,6 +36,7 @@ function daysRemaining(value: string | null) {
 export function toCredentialStatus(row: CredentialRow | null): CredentialStatus {
     return {
         pinConfigured: Boolean(row?.pin_hash),
+        passwordConfigured: Boolean(row?.password_changed_at),
         mustChangePin: row?.must_change_pin ?? true,
         mustChangePassword: row?.must_change_password ?? false,
         pinExpiresAt: row?.pin_expires_at || null,
@@ -42,6 +44,32 @@ export function toCredentialStatus(row: CredentialRow | null): CredentialStatus 
         pinDaysRemaining: daysRemaining(row?.pin_expires_at || null),
         passwordDaysRemaining: daysRemaining(row?.password_expires_at || null),
     };
+}
+
+export async function generateAvailablePin(excludeUserId?: string) {
+    const admin = createAdminClient();
+
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+        const pin = generateSixDigitCode();
+        if (isWeakPin(pin)) continue;
+
+        let query = admin
+            .from("user_credentials")
+            .select("user_id")
+            .eq("pin_lookup", keyedLookup("pin", pin));
+
+        if (excludeUserId) {
+            query = query.neq("user_id", excludeUserId);
+        }
+
+        const { data, error } = await query.maybeSingle();
+        if (error) {
+            throw new Error(`No se pudo generar el PIN: ${error.message}`);
+        }
+        if (!data) return pin;
+    }
+
+    throw new Error("No se pudo generar un PIN disponible. Intenta nuevamente");
 }
 
 export async function getCredentials(userId: string) {
@@ -161,16 +189,38 @@ export async function markPinLogin(userId: string) {
         .eq("user_id", userId);
 }
 
-export async function markPasswordChanged(userId: string) {
+export async function markTemporaryPassword(userId: string, isAdmin: boolean) {
     const admin = createAdminClient();
     const changedAt = new Date();
     const { error } = await admin
         .from("user_credentials")
         .update({
             password_changed_at: changedAt.toISOString(),
-            password_expires_at: new Date(
-                changedAt.getTime() + 30 * 86_400_000,
-            ).toISOString(),
+            password_expires_at: isAdmin
+                ? null
+                : new Date(changedAt.getTime() + 30 * 86_400_000).toISOString(),
+            must_change_password: true,
+            updated_at: changedAt.toISOString(),
+        })
+        .eq("user_id", userId);
+
+    if (error) {
+        throw new Error(`No se pudo marcar la contraseña temporal: ${error.message}`);
+    }
+}
+
+export async function markPasswordChanged(userId: string, isAdmin = false) {
+    const admin = createAdminClient();
+    const changedAt = new Date();
+    const { error } = await admin
+        .from("user_credentials")
+        .update({
+            password_changed_at: changedAt.toISOString(),
+            password_expires_at: isAdmin
+                ? null
+                : new Date(
+                    changedAt.getTime() + 30 * 86_400_000,
+                ).toISOString(),
             must_change_password: false,
             updated_at: changedAt.toISOString(),
         })

@@ -1,16 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { recordManagementAudit } from "@/lib/auth/audit";
 import { requireActiveProfile } from "@/lib/auth/authorization";
-import { normalizePin } from "@/lib/auth/crypto";
+import { sendAccessCredentialsEmail } from "@/lib/email/provider";
 import { getRequestContext } from "@/lib/auth/request-context";
 import { jsonError, safeJson } from "@/lib/auth/responses";
 import {
     createManagedUser,
+    generateManagedAccess,
     isEmail,
-    isStrongPassword,
     isUserRole,
     listManagedUsers,
-    normalizeUsername,
+    rollbackManagedUserCreation,
 } from "@/lib/auth/user-management";
 
 export const runtime = "nodejs";
@@ -43,37 +43,47 @@ export async function POST(request: NextRequest) {
     const context = getRequestContext(request);
     const body = await safeJson(request);
     const email = body?.email;
-    const username = normalizeUsername(body?.username);
     const fullName =
         typeof body?.fullName === "string" ? body.fullName.trim() : "";
     const role = body?.role;
-    const password = body?.password;
-    const pin = normalizePin(body?.pin);
 
     if (
         !isEmail(email)
-        || !username
         || fullName.length < 2
         || fullName.length > 100
         || !isUserRole(role)
-        || !isStrongPassword(password)
-        || (role !== "admin" && !pin)
     ) {
-        return jsonError(
-            "Revisa correo, usuario, nombre, rol, contraseña temporal y PIN",
-        );
+        return jsonError("Revisa el correo, nombre completo y rol");
     }
 
     try {
+        const access = await generateManagedAccess(fullName, role);
+        if (!access.username) {
+            throw new Error("No se pudo generar el nombre de usuario");
+        }
+
         const profile = await createManagedUser({
             email,
-            username,
+            username: access.username,
             fullName,
             role,
-            password,
-            pin,
+            password: access.password,
+            pin: access.pin,
             actorId: actor.id,
         });
+
+        try {
+            await sendAccessCredentialsEmail({
+                email: profile.email,
+                fullName: profile.full_name || profile.username,
+                username: profile.username,
+                password: access.password,
+                pin: access.pin,
+            });
+        } catch (emailError) {
+            await rollbackManagedUserCreation(profile.id);
+            throw emailError;
+        }
 
         await recordManagementAudit(context, {
             action: "created",
@@ -103,7 +113,11 @@ export async function POST(request: NextRequest) {
             },
         });
 
-        return NextResponse.json({ ok: true, user: profile }, { status: 201 });
+        return NextResponse.json({
+            ok: true,
+            user: profile,
+            message: "Usuario creado y credenciales enviadas por correo",
+        }, { status: 201 });
     } catch (error) {
         return jsonError(
             error instanceof Error ? error.message : "No se pudo crear el usuario",

@@ -17,8 +17,9 @@ export default async function SecurityPage() {
                     <p className="auth-eyebrow">Perfil</p>
                     <h1>Seguridad de la cuenta</h1>
                     <p>
-                        Actualiza tus credenciales de acceso. El administrador no
-                        puede consultar ni restablecer tu contraseña.
+                        Actualiza tus credenciales de acceso. Nadie puede consultar
+                        tu contraseña actual; un administrador solo puede emitir
+                        credenciales temporales nuevas.
                     </p>
                 </div>
                 <Link className="btn btn-secondary" href="/">
