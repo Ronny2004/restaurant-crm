@@ -17,6 +17,7 @@ import {
     UtensilsCrossed,
 } from "lucide-react";
 import { AuthMessage } from "@/components/auth/AuthMessage";
+import { RichCampaignText } from "@/components/campaigns/RichCampaignText";
 import {
     CAMPAIGN_SECTOR_LABELS,
     CAMPAIGN_SECTORS,
@@ -139,7 +140,7 @@ export function PublicCampaignForm({
                             Queremos conocerte
                         </p>
                         <h1>{campaign.title}</h1>
-                        <p>{campaign.description}</p>
+                        <RichCampaignText text={campaign.description} />
                         <div className="campaign-public-reward">
                             <Gift size={24} />
                             <span>
