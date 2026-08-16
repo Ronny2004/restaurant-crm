@@ -41,7 +41,8 @@ export function Header() {
 
     if (pathname.includes('/admin')) {
         title = "Administrador";
-        if (pathname.includes('/campanas')) title = "Creación de Campañas";
+        if (pathname.includes('/campanas/mesas')) title = "Configuración de Mesas";
+        else if (pathname.includes('/campanas')) title = "Creación de Campañas";
         if (pathname.includes('/ventastotales')) title = "Historial de Ventas";
         if (pathname.includes('/pedidostotales')) title = "Historial de Pedidos";
         showBackButton = isAdmin; 

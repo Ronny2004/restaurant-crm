@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import QRCode from "qrcode";
 import {
     Archive,
@@ -19,9 +20,12 @@ import {
     RefreshCw,
     Save,
     Sparkles,
+    Table2,
     Users,
 } from "lucide-react";
 import { AuthMessage } from "@/components/auth/AuthMessage";
+import { CampaignAnalytics } from "@/components/admin/CampaignAnalytics";
+import { CampaignRaffle } from "@/components/admin/CampaignRaffle";
 import {
     CAMPAIGN_SECTOR_LABELS,
     type Campaign,
@@ -423,6 +427,23 @@ export function CampaignManagement() {
 
     return (
         <div className="campaign-admin-layout">
+            <section className="glass-panel campaign-table-qr-entry">
+                <div className="campaign-section-title">
+                    <Table2 size={25} />
+                    <div>
+                        <p className="auth-eyebrow">Demo privado</p>
+                        <h2>Configuración de mesas</h2>
+                        <p>
+                            Crea QR físicos permanentes por mesa, administra varios destinos
+                            activos y consulta sus visitas sin alterar tus campañas actuales.
+                        </p>
+                    </div>
+                </div>
+                <Link className="btn btn-primary" href="/admin/campanas/mesas">
+                    Abrir configuración de mesas
+                </Link>
+            </section>
+
             <section className="glass-panel campaign-ai-panel">
                 <div className="campaign-section-title">
                     <Bot size={25} />
@@ -793,6 +814,9 @@ export function CampaignManagement() {
                             </div>
                         </div>
                     )}
+
+                    <CampaignAnalytics responses={selected.responses} />
+                    <CampaignRaffle campaign={selected} />
 
                     <div className="campaign-responses">
                         <h3>
