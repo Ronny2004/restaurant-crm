@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft, QrCode } from "lucide-react";
-import { TableQrManagement } from "@/components/admin/TableQrManagement";
+import { TableQrDashboardView } from "@/components/admin/table-qrs/TableQrDashboardView";
 import { Header } from "@/components/layout/Header";
 import { requirePageRole } from "@/lib/auth/authorization";
 
@@ -25,7 +25,7 @@ export default async function TableQrConfigurationPage() {
                         <ArrowLeft size={18} /> Volver a módulos
                     </Link>
                 </div>
-                <TableQrManagement />
+                <TableQrDashboardView />
             </main>
         </div>
     );
