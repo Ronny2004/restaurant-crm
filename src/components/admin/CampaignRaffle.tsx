@@ -5,6 +5,7 @@ import {
     CheckCircle2,
     Gift,
     Loader2,
+    Mail,
     MessageCircle,
     PackageCheck,
     Share2,
@@ -12,6 +13,11 @@ import {
     Trophy,
 } from "lucide-react";
 import { AuthMessage } from "@/components/auth/AuthMessage";
+import {
+    createWinnerShareFile,
+    downloadWinnerShareFile,
+} from "@/lib/campaigns/winner-share-card";
+import { campaignPrizeLabel } from "@/lib/campaigns/reward";
 import type { CampaignDetail } from "@/types/campaign";
 import type {
     CampaignDraw,
@@ -41,6 +47,9 @@ export function CampaignRaffle({ campaign }: { campaign: CampaignDetail }) {
     const [spinName, setSpinName] = useState("¿Quién ganará?");
     const [revealedDraw, setRevealedDraw] = useState<CampaignDraw | null>(null);
     const [message, setMessage] = useState("");
+    const [messageType, setMessageType] = useState<"error" | "success" | "info">("error");
+    const [emailingWinnerId, setEmailingWinnerId] = useState<string | null>(null);
+    const [sharingWinnerId, setSharingWinnerId] = useState<string | null>(null);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const load = useCallback(async () => {
@@ -51,6 +60,7 @@ export function CampaignRaffle({ campaign }: { campaign: CampaignDetail }) {
             if (!data.ok || !data.draws) throw new Error(data.message);
             setDraws(data.draws);
         } catch (error) {
+            setMessageType("error");
             setMessage(error instanceof Error ? error.message : "No se pudieron consultar los sorteos");
         } finally {
             setLoading(false);
@@ -100,6 +110,7 @@ export function CampaignRaffle({ campaign }: { campaign: CampaignDetail }) {
             setRevealedDraw(data.draws[0]);
             setSpinName("¡Tenemos ganador!");
         } catch (error) {
+            setMessageType("error");
             setMessage(error instanceof Error ? error.message : "No se pudo realizar el sorteo");
         } finally {
             if (intervalRef.current) clearInterval(intervalRef.current);
@@ -109,25 +120,97 @@ export function CampaignRaffle({ campaign }: { campaign: CampaignDetail }) {
     };
 
     const contactWinner = (winner: CampaignDrawWinner) => {
-        const text = `Hola ${winner.response.full_name}. ¡Felicitaciones! Resultaste ganador/a de la campaña "${campaign.title}" de Delicias Morán. Tu premio es: ${campaign.reward}`;
+        setMessage("");
+        const prize = campaignPrizeLabel(campaign.reward);
+        const phone = whatsappNumber(winner.response.phone);
+        if (!/^5939\d{8}$/.test(phone)) {
+            setMessageType("error");
+            setMessage(`El número ${winner.response.phone} no parece ser un WhatsApp válido. Puedes intentar contactarle por correo.`);
+            return;
+        }
+        const firstName = winner.response.full_name.trim().split(/\s+/)[0] || "Hola";
+        const text = [
+            `¡Hola, ${firstName}! 👋 Somos el equipo de Delicias Morán.`,
+            "",
+            "¡Tenemos una noticia especial para ti! 🎉 Resultaste ganador/a de nuestro sorteo.",
+            "",
+            `🏆 Tu premio: ${prize}`,
+            "",
+            "Queremos coordinar contigo la entrega. ¿Puedes confirmarnos por este medio que recibiste el mensaje y en qué horario podemos contactarte?",
+            "",
+            "Por tu seguridad, no necesitas realizar ningún pago ni compartir claves o códigos.",
+            "",
+            "¡Felicitaciones y gracias por participar! ❤️",
+        ].join("\n");
         window.open(
-            `https://wa.me/${whatsappNumber(winner.response.phone)}?text=${encodeURIComponent(text)}`,
+            `https://wa.me/${phone}?text=${encodeURIComponent(text)}`,
             "_blank",
             "noopener,noreferrer",
         );
     };
 
     const shareWinner = async (winner: CampaignDrawWinner) => {
-        const text = `🎉 ¡Tenemos ganador/a! ${publicWinnerName(winner.response.full_name)} ganó en nuestra campaña "${campaign.title}". Premio: ${campaign.reward}. ¡Gracias a todos por participar con Delicias Morán!`;
-        if (navigator.share) {
-            try {
-                await navigator.share({ title: "Ganador Delicias Morán", text });
-                return;
-            } catch (error) {
-                if (error instanceof DOMException && error.name === "AbortError") return;
+        setMessage("");
+        setSharingWinnerId(winner.id);
+        const name = publicWinnerName(winner.response.full_name);
+        const prize = campaignPrizeLabel(campaign.reward);
+        const text = [
+            `🎉 ¡Tenemos ganador/a! ${name}`,
+            "",
+            `🏆 Premio: ${prize}`,
+            "",
+            "¡Gracias a todos por participar! Muy pronto tendremos nuevas promociones y sorteos en Delicias Morán.",
+        ].join("\n");
+
+        try {
+            const file = await createWinnerShareFile(name, prize);
+            const files = [file];
+            if (navigator.share && navigator.canShare?.({ files })) {
+                try {
+                    await navigator.share({
+                        title: "Ganador/a de Delicias Morán",
+                        text,
+                        files,
+                    });
+                    return;
+                } catch (error) {
+                    if (error instanceof DOMException && error.name === "AbortError") return;
+                }
             }
+
+            downloadWinnerShareFile(file);
+            await navigator.clipboard?.writeText(text).catch(() => undefined);
+            window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
+            setMessageType("info");
+            setMessage("La imagen fue descargada y el mensaje quedó listo. Adjunta la imagen en WhatsApp antes de enviarlo.");
+        } catch (error) {
+            setMessageType("error");
+            setMessage(error instanceof Error ? error.message : "No se pudo preparar el anuncio del ganador");
+        } finally {
+            setSharingWinnerId(null);
         }
-        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
+    };
+
+    const emailWinner = async (winner: CampaignDrawWinner) => {
+        if (!window.confirm(`¿Enviar el aviso de ganador a ${winner.response.email}?`)) return;
+        setMessage("");
+        setEmailingWinnerId(winner.id);
+        try {
+            const response = await fetch(
+                `/api/admin/campaigns/${campaign.id}/winners/${winner.id}/email`,
+                { method: "POST" },
+            );
+            const data = await response.json() as { ok: boolean; message?: string };
+            if (!data.ok) throw new Error(data.message);
+            setMessageType("success");
+            setMessage(data.message || "Correo enviado correctamente");
+            await load();
+        } catch (error) {
+            setMessageType("error");
+            setMessage(error instanceof Error ? error.message : "No se pudo enviar el correo");
+        } finally {
+            setEmailingWinnerId(null);
+        }
     };
 
     const updateStatus = async (winner: CampaignDrawWinner, status: CampaignWinnerStatus) => {
@@ -145,6 +228,7 @@ export function CampaignRaffle({ campaign }: { campaign: CampaignDetail }) {
             if (!data.ok) throw new Error(data.message);
             await load();
         } catch (error) {
+            setMessageType("error");
             setMessage(error instanceof Error ? error.message : "No se pudo actualizar el premio");
         }
     };
@@ -197,7 +281,7 @@ export function CampaignRaffle({ campaign }: { campaign: CampaignDetail }) {
                 </div>
             </div>
 
-            <AuthMessage message={message} />
+            <AuthMessage message={message} type={messageType} />
 
             {revealedDraw && (
                 <div className="raffle-reveal">
@@ -227,8 +311,23 @@ export function CampaignRaffle({ campaign }: { campaign: CampaignDetail }) {
                                         {winner.contact_status === "pending" ? "Pendiente" : winner.contact_status === "contacted" ? "Contactado" : "Entregado"}
                                     </span>
                                     <div className="raffle-winner-actions">
-                                        <button className="btn btn-secondary" onClick={() => contactWinner(winner)}><MessageCircle size={16} /> Contactar</button>
-                                        <button className="btn btn-secondary" onClick={() => void shareWinner(winner)}><Share2 size={16} /> Compartir</button>
+                                        <button className="btn btn-secondary" onClick={() => contactWinner(winner)}><MessageCircle size={16} /> Contactar por WhatsApp</button>
+                                        <button
+                                            className="btn btn-secondary"
+                                            disabled={emailingWinnerId === winner.id}
+                                            onClick={() => void emailWinner(winner)}
+                                        >
+                                            {emailingWinnerId === winner.id ? <Loader2 className="animate-spin" size={16} /> : <Mail size={16} />}
+                                            Enviar por correo
+                                        </button>
+                                        <button
+                                            className="btn btn-secondary"
+                                            disabled={sharingWinnerId === winner.id}
+                                            onClick={() => void shareWinner(winner)}
+                                        >
+                                            {sharingWinnerId === winner.id ? <Loader2 className="animate-spin" size={16} /> : <Share2 size={16} />}
+                                            Compartir anuncio
+                                        </button>
                                         {winner.contact_status === "pending" && (
                                             <button className="btn btn-secondary" onClick={() => void updateStatus(winner, "contacted")}><CheckCircle2 size={16} /> Marcar contactado</button>
                                         )}

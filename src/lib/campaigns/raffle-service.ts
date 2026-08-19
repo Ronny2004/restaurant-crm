@@ -103,3 +103,42 @@ export async function updateWinnerStatus(input: {
     if (error) throw new Error(error.message);
     return data;
 }
+
+export async function getWinnerContactContext(input: {
+    campaignId: string;
+    winnerId: string;
+}) {
+    const admin = createAdminClient();
+    const [{ data: winner, error: winnerError }, { data: campaign, error: campaignError }] =
+        await Promise.all([
+            admin
+                .from("campaign_draw_winners")
+                .select(`
+                    id,
+                    campaign_draws!inner(campaign_id),
+                    campaign_responses(id,full_name,email,phone)
+                `)
+                .eq("id", input.winnerId)
+                .eq("campaign_draws.campaign_id", input.campaignId)
+                .maybeSingle(),
+            admin
+                .from("campaigns")
+                .select("id,reward")
+                .eq("id", input.campaignId)
+                .maybeSingle(),
+        ]);
+
+    if (winnerError || campaignError) {
+        throw new Error(winnerError?.message || campaignError?.message);
+    }
+    if (!winner || !campaign) return null;
+
+    const response = winner.campaign_responses as unknown as CampaignDrawWinner["response"];
+    if (!response?.email) return null;
+
+    return {
+        winnerId: winner.id,
+        reward: campaign.reward,
+        response,
+    };
+}
