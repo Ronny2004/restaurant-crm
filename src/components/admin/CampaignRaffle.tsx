@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     CheckCircle2,
     Gift,
+    Heart,
     Loader2,
     Mail,
     MessageCircle,
@@ -14,6 +15,7 @@ import {
 } from "lucide-react";
 import { AuthMessage } from "@/components/auth/AuthMessage";
 import {
+    createWinnerCongratulationsFile,
     createWinnerShareFile,
     downloadWinnerShareFile,
 } from "@/lib/campaigns/winner-share-card";
@@ -49,6 +51,7 @@ export function CampaignRaffle({ campaign }: { campaign: CampaignDetail }) {
     const [message, setMessage] = useState("");
     const [messageType, setMessageType] = useState<"error" | "success" | "info">("error");
     const [emailingWinnerId, setEmailingWinnerId] = useState<string | null>(null);
+    const [congratulatingWinnerId, setCongratulatingWinnerId] = useState<string | null>(null);
     const [sharingWinnerId, setSharingWinnerId] = useState<string | null>(null);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -191,6 +194,62 @@ export function CampaignRaffle({ campaign }: { campaign: CampaignDetail }) {
         }
     };
 
+    const shareWinnerCongratulations = async (winner: CampaignDrawWinner) => {
+        setMessage("");
+        setCongratulatingWinnerId(winner.id);
+        const firstName = winner.response.full_name.trim().split(/\s+/)[0] || "Ganador/a";
+        const prize = campaignPrizeLabel(campaign.reward);
+        const phone = whatsappNumber(winner.response.phone);
+        const text = [
+            `¡Hola, ${firstName}! 🎉`,
+            "",
+            "Preparamos esta felicitación especialmente para ti. Gracias por compartir tu experiencia y ser parte de Delicias Morán.",
+            "",
+            `🏆 Tu premio: ${prize}`,
+            "",
+            "Cuando puedas, respóndenos para coordinar contigo la entrega. Recuerda que no debes realizar ningún pago ni compartir claves o códigos.",
+            "",
+            "¡Esperamos celebrar contigo muy pronto! ❤️",
+        ].join("\n");
+
+        try {
+            const file = await createWinnerCongratulationsFile(winner.response.full_name, prize);
+            const files = [file];
+            if (navigator.share && navigator.canShare?.({ files })) {
+                try {
+                    await navigator.share({
+                        title: `Felicitación para ${firstName}`,
+                        text,
+                        files,
+                    });
+                    return;
+                } catch (error) {
+                    if (error instanceof DOMException && error.name === "AbortError") return;
+                }
+            }
+
+            downloadWinnerShareFile(file);
+            await navigator.clipboard?.writeText(text).catch(() => undefined);
+            if (/^5939\d{8}$/.test(phone)) {
+                window.open(
+                    `https://wa.me/${phone}?text=${encodeURIComponent(text)}`,
+                    "_blank",
+                    "noopener,noreferrer",
+                );
+                setMessageType("info");
+                setMessage("La felicitación fue descargada. Adjunta la imagen en el chat del ganador antes de enviarla.");
+            } else {
+                setMessageType("info");
+                setMessage("La felicitación fue descargada y el texto quedó copiado. Como el teléfono no es válido, puedes enviarlos por correo.");
+            }
+        } catch (error) {
+            setMessageType("error");
+            setMessage(error instanceof Error ? error.message : "No se pudo preparar la felicitación");
+        } finally {
+            setCongratulatingWinnerId(null);
+        }
+    };
+
     const emailWinner = async (winner: CampaignDrawWinner) => {
         if (!window.confirm(`¿Enviar el aviso de ganador a ${winner.response.email}?`)) return;
         setMessage("");
@@ -319,6 +378,14 @@ export function CampaignRaffle({ campaign }: { campaign: CampaignDetail }) {
                                         >
                                             {emailingWinnerId === winner.id ? <Loader2 className="animate-spin" size={16} /> : <Mail size={16} />}
                                             Enviar por correo
+                                        </button>
+                                        <button
+                                            className="btn btn-secondary"
+                                            disabled={congratulatingWinnerId === winner.id}
+                                            onClick={() => void shareWinnerCongratulations(winner)}
+                                        >
+                                            {congratulatingWinnerId === winner.id ? <Loader2 className="animate-spin" size={16} /> : <Heart size={16} />}
+                                            Enviar felicitación
                                         </button>
                                         <button
                                             className="btn btn-secondary"
