@@ -132,3 +132,65 @@ export async function sendPinRecoveryEmail(email: string, code: string) {
         throw new Error("No se pudo enviar el correo de recuperación.");
     }
 }
+
+type CampaignWinnerEmail = {
+    email: string;
+    fullName: string;
+    phone: string;
+    reward: string;
+};
+
+export async function sendCampaignWinnerEmail(input: CampaignWinnerEmail) {
+    const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+    if (!from) throw new Error("Falta SMTP_FROM o SMTP_USER");
+
+    const firstName = input.fullName.trim().split(/\s+/)[0] || "Hola";
+    const suppliedPhone = input.phone.trim() || "sin número registrado";
+
+    try {
+        const info = await createTransport().sendMail({
+            from: `Delicias Morán <${from}>`,
+            to: input.email,
+            replyTo: from,
+            subject: `¡${firstName}, tenemos una buena noticia para ti!`,
+            text: [
+                `Hola ${input.fullName},`,
+                "",
+                "¡Felicitaciones! Resultaste ganador/a de uno de nuestros sorteos en Delicias Morán.",
+                `Tu premio: ${input.reward}`,
+                "",
+                `Intentamos comunicarnos al número ${suppliedPhone}, que registraste al participar, pero no logramos contactarte.`,
+                "Responde directamente a este correo con un número de teléfono o WhatsApp válido y el horario en que podemos localizarte para coordinar la entrega de tu premio.",
+                "",
+                "Por tu seguridad, Delicias Morán nunca te pedirá pagos, contraseñas ni códigos para entregarte el premio.",
+                "",
+                "¡Gracias por participar y ser parte de nuestra comunidad!",
+                "Equipo de Delicias Morán",
+            ].join("\n"),
+            html: `
+                <div style="margin:auto;max-width:620px;overflow:hidden;border:1px solid #ead8c6;border-radius:20px;background:#fffaf2;font-family:Arial,sans-serif;color:#3d1c10">
+                    <div style="padding:28px;background:#5a2511;color:#fff8e7;text-align:center">
+                        <p style="margin:0 0 8px;font-size:13px;font-weight:700;letter-spacing:1.5px">DELICIAS MORÁN</p>
+                        <h1 style="margin:0;font-size:28px">¡Tenemos una buena noticia para ti!</h1>
+                    </div>
+                    <div style="padding:30px">
+                        <p>Hola <strong>${escapeHtml(input.fullName)}</strong>,</p>
+                        <p>¡Felicitaciones! Resultaste ganador/a de uno de nuestros sorteos.</p>
+                        <div style="margin:24px 0;padding:20px;border:1px solid #d89a2b;border-radius:14px;background:#f9e1a8;text-align:center">
+                            <span style="font-size:12px;font-weight:800;letter-spacing:1px;color:#8b4217">TU PREMIO</span>
+                            <p style="margin:8px 0 0;font-size:20px;font-weight:800">${escapeHtml(input.reward)}</p>
+                        </div>
+                        <p>Intentamos comunicarnos al número <strong>${escapeHtml(suppliedPhone)}</strong>, que registraste al participar, pero no logramos contactarte.</p>
+                        <p><strong>Responde directamente a este correo</strong> con un número de teléfono o WhatsApp válido y el horario en que podemos localizarte para coordinar la entrega.</p>
+                        <p style="margin-top:24px;padding:14px;border-radius:10px;background:#f3eee8;color:#6f594c;font-size:13px">Por tu seguridad, Delicias Morán nunca te pedirá pagos, contraseñas ni códigos para entregarte el premio.</p>
+                        <p style="margin-top:24px">¡Gracias por participar y ser parte de nuestra comunidad!<br><strong>Equipo de Delicias Morán</strong></p>
+                    </div>
+                </div>
+            `,
+        });
+        console.log("Correo de ganador enviado. ID:", info.messageId);
+    } catch (error) {
+        console.error("Error enviando correo al ganador por SMTP:", error);
+        throw new Error("No se pudo enviar el correo al ganador");
+    }
+}

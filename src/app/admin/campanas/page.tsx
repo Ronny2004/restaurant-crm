@@ -29,11 +29,11 @@ export default async function CampaignsPage() {
                         </div>
                         <span className="campaign-module-action">Abrir campañas <ArrowRight size={18} /></span>
                     </Link>
-                    <Link className="glass-panel campaign-module-option demo" href="/admin/campanas/mesas">
+                    <Link className="glass-panel campaign-module-option" href="/admin/campanas/mesas">
                         <span className="campaign-module-number">2</span>
                         <div className="campaign-module-icon"><QrCode size={34} /></div>
                         <div>
-                            <p className="auth-eyebrow">Demo privado</p>
+                            <p className="auth-eyebrow">Administración de QR</p>
                             <h2>Configuración de mesas</h2>
                             <p>Administra QR físicos permanentes por mesa y cambia sus destinos desde el CRM.</p>
                         </div>
