@@ -54,7 +54,7 @@ async function loadLogo() {
     return image;
 }
 
-export async function createWinnerShareFile(winnerName: string, reward: string) {
+async function createCardSurface() {
     const canvas = document.createElement("canvas");
     canvas.width = CARD_WIDTH;
     canvas.height = CARD_HEIGHT;
@@ -106,6 +106,23 @@ export async function createWinnerShareFile(winnerName: string, reward: string) 
     context.font = "800 28px Arial, sans-serif";
     context.fillText("DELICIAS MORÁN", 540, 292);
 
+    return { canvas, context };
+}
+
+async function exportCard(canvas: HTMLCanvasElement, fileName: string) {
+    const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((result) => {
+            if (result) resolve(result);
+            else reject(new Error("No se pudo exportar la imagen del ganador"));
+        }, "image/png");
+    });
+
+    return new File([blob], fileName, { type: "image/png" });
+}
+
+export async function createWinnerShareFile(winnerName: string, reward: string) {
+    const { canvas, context } = await createCardSurface();
+
     context.fillStyle = "#b65c20";
     context.font = "900 48px Arial, sans-serif";
     context.fillText("¡TENEMOS GANADOR/A!", 540, 375);
@@ -133,14 +150,60 @@ export async function createWinnerShareFile(winnerName: string, reward: string) 
     context.font = "700 27px Arial, sans-serif";
     context.fillText("¡Felicitaciones y gracias por participar!", 540, 955);
 
-    const blob = await new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob((result) => {
-            if (result) resolve(result);
-            else reject(new Error("No se pudo exportar la imagen del ganador"));
-        }, "image/png");
-    });
+    return exportCard(canvas, "ganador-delicias-moran.png");
+}
 
-    return new File([blob], "ganador-delicias-moran.png", { type: "image/png" });
+export async function createWinnerCongratulationsFile(winnerName: string, reward: string) {
+    const { canvas, context } = await createCardSurface();
+    const firstName = winnerName.trim().split(/\s+/)[0] || "Ganador/a";
+
+    context.fillStyle = "#b65c20";
+    context.font = "900 34px Arial, sans-serif";
+    context.fillText("UN MENSAJE ESPECIAL PARA TI", 540, 372);
+
+    context.fillStyle = "#3d1c10";
+    context.font = "900 68px Georgia, serif";
+    const nameEnd = wrapCenteredText(
+        context,
+        `¡FELICITACIONES, ${firstName}!`,
+        540,
+        485,
+        790,
+        78,
+    );
+
+    context.fillStyle = "#76503b";
+    context.font = "500 30px Arial, sans-serif";
+    const messageEnd = wrapCenteredText(
+        context,
+        "Gracias por compartir tu experiencia y permitirnos celebrar este momento contigo.",
+        540,
+        nameEnd + 25,
+        760,
+        42,
+    );
+
+    const rewardTop = Math.max(700, messageEnd + 24);
+    roundedRect(context, 155, rewardTop, 770, 180, 30);
+    context.fillStyle = "#f7d991";
+    context.fill();
+    context.strokeStyle = "#d89a2b";
+    context.lineWidth = 3;
+    context.stroke();
+
+    context.fillStyle = "#8b4217";
+    context.font = "800 23px Arial, sans-serif";
+    context.fillText("ESTE PREMIO ES PARA TI", 540, rewardTop + 46);
+    context.fillStyle = "#3d1c10";
+    context.font = "800 36px Arial, sans-serif";
+    wrapCenteredText(context, reward, 540, rewardTop + 100, 680, 45);
+
+    context.fillStyle = "#6b2d12";
+    context.font = "700 26px Arial, sans-serif";
+    context.fillText("Con cariño, el equipo de Delicias Morán", 540, 955);
+
+    const safeName = firstName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/gi, "-").toLowerCase();
+    return exportCard(canvas, `felicitacion-${safeName || "ganador"}.png`);
 }
 
 export function downloadWinnerShareFile(file: File) {
